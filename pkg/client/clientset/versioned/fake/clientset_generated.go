@@ -24,6 +24,8 @@ import (
 	clientset "k8s.io/application-aware-controller/pkg/client/clientset/versioned"
 	appawarecontrollerv1 "k8s.io/application-aware-controller/pkg/client/clientset/versioned/typed/appawarecontroller/v1"
 	fakeappawarecontrollerv1 "k8s.io/application-aware-controller/pkg/client/clientset/versioned/typed/appawarecontroller/v1/fake"
+	autoscalingv1alpha1 "k8s.io/application-aware-controller/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1"
+	fakeautoscalingv1alpha1 "k8s.io/application-aware-controller/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1/fake"
 	"k8s.io/client-go/discovery"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
@@ -82,4 +84,9 @@ var (
 // AppawarecontrollerV1 retrieves the AppawarecontrollerV1Client
 func (c *Clientset) AppawarecontrollerV1() appawarecontrollerv1.AppawarecontrollerV1Interface {
 	return &fakeappawarecontrollerv1.FakeAppawarecontrollerV1{Fake: &c.Fake}
+}
+
+// AutoscalingV1alpha1 retrieves the AutoscalingV1alpha1Client
+func (c *Clientset) AutoscalingV1alpha1() autoscalingv1alpha1.AutoscalingV1alpha1Interface {
+	return &fakeautoscalingv1alpha1.FakeAutoscalingV1alpha1{Fake: &c.Fake}
 }

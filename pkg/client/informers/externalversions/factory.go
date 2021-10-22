@@ -28,6 +28,7 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	versioned "k8s.io/application-aware-controller/pkg/client/clientset/versioned"
 	appawarecontroller "k8s.io/application-aware-controller/pkg/client/informers/externalversions/appawarecontroller"
+	autoscaling "k8s.io/application-aware-controller/pkg/client/informers/externalversions/autoscaling"
 	internalinterfaces "k8s.io/application-aware-controller/pkg/client/informers/externalversions/internalinterfaces"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -173,8 +174,13 @@ type SharedInformerFactory interface {
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
 	Appawarecontroller() appawarecontroller.Interface
+	Autoscaling() autoscaling.Interface
 }
 
 func (f *sharedInformerFactory) Appawarecontroller() appawarecontroller.Interface {
 	return appawarecontroller.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Autoscaling() autoscaling.Interface {
+	return autoscaling.New(f, f.namespace, f.tweakListOptions)
 }

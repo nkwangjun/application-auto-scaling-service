@@ -23,6 +23,7 @@ import (
 
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	v1 "k8s.io/application-aware-controller/pkg/apis/appawarecontroller/v1"
+	v1alpha1 "k8s.io/application-aware-controller/pkg/apis/autoscaling/v1alpha1"
 	cache "k8s.io/client-go/tools/cache"
 )
 
@@ -55,6 +56,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=appawarecontroller.k8s.io, Version=v1
 	case v1.SchemeGroupVersion.WithResource("appawarehorizontalpodautoscalers"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Appawarecontroller().V1().AppawareHorizontalPodAutoscalers().Informer()}, nil
+
+		// Group=autoscaling.cce.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("customedhorizontalpodautoscalers"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Autoscaling().V1alpha1().CustomedHorizontalPodAutoscalers().Informer()}, nil
 
 	}
 

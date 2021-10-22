@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	appawarecontrollerv1 "k8s.io/application-aware-controller/pkg/client/clientset/versioned/typed/appawarecontroller/v1"
+	autoscalingv1alpha1 "k8s.io/application-aware-controller/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -30,6 +31,7 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	AppawarecontrollerV1() appawarecontrollerv1.AppawarecontrollerV1Interface
+	AutoscalingV1alpha1() autoscalingv1alpha1.AutoscalingV1alpha1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -37,11 +39,17 @@ type Interface interface {
 type Clientset struct {
 	*discovery.DiscoveryClient
 	appawarecontrollerV1 *appawarecontrollerv1.AppawarecontrollerV1Client
+	autoscalingV1alpha1  *autoscalingv1alpha1.AutoscalingV1alpha1Client
 }
 
 // AppawarecontrollerV1 retrieves the AppawarecontrollerV1Client
 func (c *Clientset) AppawarecontrollerV1() appawarecontrollerv1.AppawarecontrollerV1Interface {
 	return c.appawarecontrollerV1
+}
+
+// AutoscalingV1alpha1 retrieves the AutoscalingV1alpha1Client
+func (c *Clientset) AutoscalingV1alpha1() autoscalingv1alpha1.AutoscalingV1alpha1Interface {
+	return c.autoscalingV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -69,6 +77,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.autoscalingV1alpha1, err = autoscalingv1alpha1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfig(&configShallowCopy)
 	if err != nil {
@@ -82,6 +94,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.appawarecontrollerV1 = appawarecontrollerv1.NewForConfigOrDie(c)
+	cs.autoscalingV1alpha1 = autoscalingv1alpha1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -91,6 +104,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.appawarecontrollerV1 = appawarecontrollerv1.New(c)
+	cs.autoscalingV1alpha1 = autoscalingv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

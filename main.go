@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"time"
+
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	clientset "k8s.io/application-aware-controller/pkg/client/clientset/versioned"
 	informers "k8s.io/application-aware-controller/pkg/client/informers/externalversions"
@@ -43,6 +46,15 @@ func main() {
 	aacClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Error building example clientset: %s", err.Error())
+	}
+
+	{
+		customedHorizontalPodAutoscaler, err := aacClient.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers("default").
+			Get(context.Background(), "customedhpa001", v1.GetOptions{})
+		if err != nil {
+			klog.Errorf(" === Get cce hpa err: %+v", err)
+		}
+		klog.Infof(" === Get cce hpa: %+v", customedHorizontalPodAutoscaler)
 	}
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)

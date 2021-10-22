@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -25,11 +26,15 @@ import (
 const controllerAgentName = "application-aware-controller"
 
 const (
+	NamespaceDefault = "default"
+
 	// SuccessSynced is used as part of the Event 'reason' when a AppawareHPA is synced
 	SuccessSynced = "Synced"
 	// ErrResourceExists is used as part of the Event 'reason' when a AppawareHPA fails
 	// to sync due to a Deployment of the same name already existing.
 	ErrResourceExists = "ErrResourceExists"
+	// SuccessSynced is used as part of the Event 'reason' when a AppawareHPA prediction operation is executed
+	SuccessExecuted = "Executed"
 
 	// MessageResourceExists is the message used for Events when a resource
 	// fails to sync due to a Deployment already existing
@@ -37,6 +42,9 @@ const (
 	// MessageResourceSynced is the message used for an Event fired when a AppawareHPA
 	// is synced successfully
 	MessageResourceSynced = "AppawareHPA synced successfully"
+	// MessageResourceSynced is the message used for an Event fired when
+	// AppawareHPA prediction operation is executed
+	MessagePredictionOperationExecuted = "Prediction operation is executed, changed the HPA values to minReplicas[%d] maxReplicas[%d]"
 )
 
 // Controller is the controller implementation for ahpa resources
@@ -90,9 +98,10 @@ func NewController(
 	// Set up an event handler for when ahpa resources change
 	appawareHPAInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.enqueueAppawareHorizontalPodAutoscaler,
-		UpdateFunc: func(old, new interface{}) {
-			controller.enqueueAppawareHorizontalPodAutoscaler(new)
-		},
+		//UpdateFunc: func(old, new interface{}) {
+		//	controller.enqueueAppawareHorizontalPodAutoscaler(new)
+		//},
+		DeleteFunc: StopTaskHPA,
 	})
 
 	return controller
@@ -213,6 +222,18 @@ func (c *Controller) syncHandler(key string) error {
 
 		return err
 	}
+	bytes, _ := json.Marshal(ahpa)
+	klog.Infof("=== ahpa marshal: %s", bytes)
+	//deploymentList, err := c.kubeclientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{})
+	//bytes2, _ := json.Marshal(deploymentList)
+	//fmt.Printf("=== deployList: %+v\n", string(bytes2))
+
+	// todo 参数校验
+
+	forecastPeriod := *ahpa.Spec.ForecastWindow
+	klog.Infof("收到ahpa任务，纳管hpa[%s/%s]，预测周期[%dmin]",
+		NamespaceDefault, ahpa.Spec.ScaleTargetRef.Name, forecastPeriod)
+	RunTaskHPA(ahpa, c.kubeclientset, c.recorder)
 
 	// TODO(wangjun): 参数校验, 一个HPA只允许关联一个AHPA, 失败则更新AHPA状态和原因
 
