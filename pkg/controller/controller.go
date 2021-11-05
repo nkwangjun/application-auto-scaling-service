@@ -17,45 +17,51 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
-	clientset "k8s.io/application-aware-controller/pkg/client/clientset/versioned"
-	aacscheme "k8s.io/application-aware-controller/pkg/client/clientset/versioned/scheme"
-	informers "k8s.io/application-aware-controller/pkg/client/informers/externalversions/appawarecontroller/v1"
-	listers "k8s.io/application-aware-controller/pkg/client/listers/appawarecontroller/v1"
+	servicev1 "nanto.io/application-auto-scaling-service/pkg/apis/batch/v1"
+	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
+	aassscheme "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/scheme"
+	"nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions"
+	autoscalinglisters "nanto.io/application-auto-scaling-service/pkg/client/listers/autoscaling/v1alpha1"
+	batchlisters "nanto.io/application-auto-scaling-service/pkg/client/listers/batch/v1"
 )
 
-const controllerAgentName = "application-aware-controller"
+const controllerAgentName = "application-auto-scaling-service"
 
 const (
 	NamespaceDefault = "default"
 
-	// SuccessSynced is used as part of the Event 'reason' when a AppawareHPA is synced
+	// SuccessSynced is used as part of the Event 'reason' when a ForecastTask is synced
 	SuccessSynced = "Synced"
-	// ErrResourceExists is used as part of the Event 'reason' when a AppawareHPA fails
+	// ErrResourceExists is used as part of the Event 'reason' when a ForecastTask fails
 	// to sync due to a Deployment of the same name already existing.
 	ErrResourceExists = "ErrResourceExists"
-	// SuccessSynced is used as part of the Event 'reason' when a AppawareHPA prediction operation is executed
+	// SuccessSynced is used as part of the Event 'reason' when a ForecastTask prediction operation is executed
 	SuccessExecuted = "Executed"
 
 	// MessageResourceExists is the message used for Events when a resource
 	// fails to sync due to a Deployment already existing
-	MessageResourceExists = "Resource %q already exists and is not managed by AppawareHPA"
-	// MessageResourceSynced is the message used for an Event fired when a AppawareHPA
+	MessageResourceExists = "Resource %q already exists and is not managed by ForecastTask"
+	// MessageResourceSynced is the message used for an Event fired when a ForecastTask
 	// is synced successfully
-	MessageResourceSynced = "AppawareHPA synced successfully"
+	MessageResourceSynced = "ForecastTask synced successfully"
 	// MessageResourceSynced is the message used for an Event fired when
-	// AppawareHPA prediction operation is executed
-	MessagePredictionOperationExecuted = "Prediction operation is executed, changed the HPA values to minReplicas[%d] maxReplicas[%d]"
+	// ForecastTask prediction operation is executed
+	MessagePredictionOperationExecuted = "Prediction operation is executed, changed the HPA values to isScaleUp[%t] " +
+		"metricValue[%.2f] stepVal[%d]"
 )
 
-// Controller is the controller implementation for ahpa resources
+// Controller is the controller implementation for aass and chpa resources
 type Controller struct {
-	// kubeclientset is a standard kubernetes clientset
-	kubeclientset kubernetes.Interface
-	// aacclientset is a clientset for our own API group
+	// kubeClientset is a standard kubernetes clientset
+	kubeClientset kubernetes.Interface
+	// crdClientset is a clientset for our own API group
+	crdClientset clientset.Interface
 
-	aacclientset      clientset.Interface
-	appawareHPALister listers.AppawareHorizontalPodAutoscalerLister
-	appawareHPASynced cache.InformerSynced
+	ftLister batchlisters.ForecastTaskLister
+	ftSynced cache.InformerSynced
+
+	chpaLister autoscalinglisters.CustomedHorizontalPodAutoscalerLister
+	chpaSynced cache.InformerSynced
 
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -68,40 +74,51 @@ type Controller struct {
 	recorder record.EventRecorder
 }
 
-// NewController returns a new ahpa controller
+// NewController returns a new controller
 func NewController(
-	kubeclientset kubernetes.Interface,
-	aacclientset clientset.Interface,
-	appawareHPAInformer informers.AppawareHorizontalPodAutoscalerInformer) *Controller {
+	kubeClientset kubernetes.Interface,
+	crdClientset clientset.Interface,
+	crdInformerFactory externalversions.SharedInformerFactory) *Controller {
 
 	// Create event broadcaster
-	// Add application-aware-controller types to the default Kubernetes Scheme so Events can be
-	// logged for application-aware-controller types.
-	utilruntime.Must(aacscheme.AddToScheme(scheme.Scheme))
+	// Add forecast-task types to the default Kubernetes Scheme so Events can be
+	// logged for forecast-task types.
+	utilruntime.Must(aassscheme.AddToScheme(scheme.Scheme))
 	klog.V(4).Info("Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartStructuredLogging(0)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("")})
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClientset.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 
+	ftInformer := crdInformerFactory.Batch().V1().ForecastTasks()
+	chpaInformer := crdInformerFactory.Autoscaling().V1alpha1().CustomedHorizontalPodAutoscalers()
 	controller := &Controller{
-		kubeclientset:     kubeclientset,
-		aacclientset:      aacclientset,
-		appawareHPALister: appawareHPAInformer.Lister(),
-		appawareHPASynced: appawareHPAInformer.Informer().HasSynced,
+		kubeClientset: kubeClientset,
+		crdClientset:  crdClientset,
+		ftLister:      ftInformer.Lister(),
+		ftSynced:      ftInformer.Informer().HasSynced,
+		chpaLister:    chpaInformer.Lister(),
+		chpaSynced:    chpaInformer.Informer().HasSynced,
+
 		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(),
-			"AppawareHorizontalPodAutoscalers"),
+			"ForecastTasks"),
 		recorder: recorder,
 	}
 
 	klog.Info("Setting up event handlers")
-	// Set up an event handler for when ahpa resources change
-	appawareHPAInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: controller.enqueueAppawareHorizontalPodAutoscaler,
-		//UpdateFunc: func(old, new interface{}) {
-		//	controller.enqueueAppawareHorizontalPodAutoscaler(new)
-		//},
-		DeleteFunc: StopTaskHPA,
+	// Set up an event handler for when forecastTaskObj resources change
+	ftInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: controller.enqueueForecastTask,
+		UpdateFunc: func(old, new interface{}) {
+			oldFt := old.(*servicev1.ForecastTask)
+			newFt := new.(*servicev1.ForecastTask)
+			if oldFt.ResourceVersion == newFt.ResourceVersion {
+				// If the version is consistent, no actual update is performed
+				return
+			}
+			controller.enqueueForecastTask(new)
+		},
+		DeleteFunc: StopTaskCustomHPA,
 	})
 
 	return controller
@@ -116,16 +133,16 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
 	// Start the informer factories to begin populating the informer caches
-	klog.Info("Starting application aware controller")
+	klog.Info("Starting controller")
 
 	// Wait for the caches to be synced before starting workers
 	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.appawareHPASynced); !ok {
+	if ok := cache.WaitForCacheSync(stopCh, c.ftSynced, c.chpaSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
 	klog.Info("Starting workers")
-	// Launch workers to process ahpa resources
+	// Launch workers to process forecastTask resources
 	for i := 0; i < workers; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
@@ -179,7 +196,7 @@ func (c *Controller) processNextWorkItem() bool {
 			return nil
 		}
 		// Run the syncHandler, passing it the namespace/name string of the
-		// Foo resource to be synced.
+		// aass resource to be synced.
 		if err := c.syncHandler(key); err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			c.workqueue.AddRateLimited(key)
@@ -211,46 +228,38 @@ func (c *Controller) syncHandler(key string) error {
 		return nil
 	}
 
-	// Get the apha resource with this namespace/name
-	ahpa, err := c.appawareHPALister.AppawareHorizontalPodAutoscalers(namespace).Get(name)
+	// Get the ft resource with this namespace/name
+	ft, err := c.ftLister.ForecastTasks(namespace).Get(name)
 	if err != nil {
-		// The apha resource may no longer exist, in which case we stop processing.
+		// The aass resource may no longer exist, in which case we stop processing.
 		if errors.IsNotFound(err) {
-			utilruntime.HandleError(fmt.Errorf("appawareHPA '%s' in work queue no longer exists", key))
+			utilruntime.HandleError(fmt.Errorf("aass '%s' in work queue no longer exists", key))
 			return nil
 		}
-
 		return err
 	}
-	bytes, _ := json.Marshal(ahpa)
-	klog.Infof("=== ahpa marshal: %s", bytes)
-	//deploymentList, err := c.kubeclientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{})
-	//bytes2, _ := json.Marshal(deploymentList)
-	//fmt.Printf("=== deployList: %+v\n", string(bytes2))
 
-	// todo 参数校验
-
-	forecastPeriod := *ahpa.Spec.ForecastWindow
-	klog.Infof("收到ahpa任务，纳管hpa[%s/%s]，预测周期[%dmin]",
-		NamespaceDefault, ahpa.Spec.ScaleTargetRef.Name, forecastPeriod)
-	RunTaskHPA(ahpa, c.kubeclientset, c.recorder)
+	{ // debug
+		bytes, _ := json.Marshal(ft)
+		klog.Infof("=== ft marshal: %s", bytes)
+	}
 
 	// TODO(wangjun): 参数校验, 一个HPA只允许关联一个AHPA, 失败则更新AHPA状态和原因
 
 	// TODO(wangjun): 如果AHPA作用的目标对象发生了变化, 则删除历史关联的后台任务
 
-	// TODO(wangjun): 启动一个后台任务, 执行HPA调整
+	klog.Infof("Receive ForecastTask obj, ScaleTargetRefs[%s/%s], ForecastWindow[%dmin]",
+		NamespaceDefault, ft.Spec.ScaleTargetRefs[0].Name, *ft.Spec.ForecastWindow)
+	RunTaskCustomHPA(ft, c.kubeClientset, c.crdClientset, c.recorder)
 
-	// TODO(wangjun): 更新AHPA状态和作用对象
-
-	c.recorder.Event(ahpa, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
+	c.recorder.Event(ft, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
 	return nil
 }
 
-// enqueueForecastPolicy takes an apha resource and converts it into a namespace/name
+// enqueueForecastTask takes an ft resource and converts it into a namespace/name
 // string which is then put onto the work queue. This method should *not* be
-// passed resources of any type other than Foo.
-func (c *Controller) enqueueAppawareHorizontalPodAutoscaler(obj interface{}) {
+// passed resources of any type other than ft.
+func (c *Controller) enqueueForecastTask(obj interface{}) {
 	var key string
 	var err error
 	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {

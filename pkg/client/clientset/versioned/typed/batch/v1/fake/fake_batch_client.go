@@ -21,20 +21,20 @@ package fake
 import (
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
-	v1alpha1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1"
+	v1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/batch/v1"
 )
 
-type FakeAutoscalingV1alpha1 struct {
+type FakeBatchV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeAutoscalingV1alpha1) CustomedHorizontalPodAutoscalers(namespace string) v1alpha1.CustomedHorizontalPodAutoscalerInterface {
-	return &FakeCustomedHorizontalPodAutoscalers{c, namespace}
+func (c *FakeBatchV1) ForecastTasks(namespace string) v1.ForecastTaskInterface {
+	return &FakeForecastTasks{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeAutoscalingV1alpha1) RESTClient() rest.Interface {
+func (c *FakeBatchV1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

@@ -23,8 +23,8 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	versioned "k8s.io/application-aware-controller/pkg/client/clientset/versioned"
 	cache "k8s.io/client-go/tools/cache"
+	versioned "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
 )
 
 // NewInformerFunc takes versioned.Interface and time.Duration to return a SharedIndexInformer.

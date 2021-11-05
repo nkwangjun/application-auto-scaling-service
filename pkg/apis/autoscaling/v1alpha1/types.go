@@ -26,13 +26,39 @@ type CustomedHorizontalPodAutoscaler struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec CustomedHorizontalPodAutoscalerSpec `json:"spec"`
-	//Status AppawareHorizontalPodAutoscalerStatus `json:"status,omitempty"`
+	//Status CustomedHorizontalPodAutoscalerStatus `json:"status,omitempty"`
 }
 
 type CustomedHorizontalPodAutoscalerSpec struct {
+	CoolDownTime   string         `json:"coolDownTime"`
 	MaxReplicas    *int32         `json:"maxReplicas"`
 	MinReplicas    *int32         `json:"minReplicas"`
+	Rules          []Rule         `json:"rules"`
 	ScaleTargetRef ScaleTargetRef `json:"scaleTargetRef"`
+}
+
+type Rule struct {
+	Actions       []Action      `json:"actions"`
+	Disable       *bool         `json:"disable"`
+	MetricTrigger MetricTrigger `json:"metricTrigger"`
+	RuleName      string        `json:"ruleName"`
+	RuleType      string        `json:"ruleType"`
+}
+
+type Action struct {
+	MetricRange    string `json:"metricRange"`
+	OperationType  string `json:"operationType"`
+	OperationUnit  string `json:"operationUnit"`
+	OperationValue *int32 `json:"operationValue"`
+}
+
+type MetricTrigger struct {
+	HitThreshold    *int32   `json:"hitThreshold"`
+	MetricName      string   `json:"metricName"`
+	MetricOperation string   `json:"metricOperation"`
+	MetricValue     *float32 `json:"metricValue"`
+	PeriodSeconds   *int32   `json:"periodSeconds"`
+	Statistic       string   `json:"statistic"`
 }
 
 type ScaleTargetRef struct {

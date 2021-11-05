@@ -21,35 +21,35 @@ package versioned
 import (
 	"fmt"
 
-	appawarecontrollerv1 "k8s.io/application-aware-controller/pkg/client/clientset/versioned/typed/appawarecontroller/v1"
-	autoscalingv1alpha1 "k8s.io/application-aware-controller/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
+	autoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1"
+	batchv1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/batch/v1"
 )
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	AppawarecontrollerV1() appawarecontrollerv1.AppawarecontrollerV1Interface
 	AutoscalingV1alpha1() autoscalingv1alpha1.AutoscalingV1alpha1Interface
+	BatchV1() batchv1.BatchV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	appawarecontrollerV1 *appawarecontrollerv1.AppawarecontrollerV1Client
-	autoscalingV1alpha1  *autoscalingv1alpha1.AutoscalingV1alpha1Client
-}
-
-// AppawarecontrollerV1 retrieves the AppawarecontrollerV1Client
-func (c *Clientset) AppawarecontrollerV1() appawarecontrollerv1.AppawarecontrollerV1Interface {
-	return c.appawarecontrollerV1
+	autoscalingV1alpha1 *autoscalingv1alpha1.AutoscalingV1alpha1Client
+	batchV1             *batchv1.BatchV1Client
 }
 
 // AutoscalingV1alpha1 retrieves the AutoscalingV1alpha1Client
 func (c *Clientset) AutoscalingV1alpha1() autoscalingv1alpha1.AutoscalingV1alpha1Interface {
 	return c.autoscalingV1alpha1
+}
+
+// BatchV1 retrieves the BatchV1Client
+func (c *Clientset) BatchV1() batchv1.BatchV1Interface {
+	return c.batchV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -73,11 +73,11 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.appawarecontrollerV1, err = appawarecontrollerv1.NewForConfig(&configShallowCopy)
+	cs.autoscalingV1alpha1, err = autoscalingv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
-	cs.autoscalingV1alpha1, err = autoscalingv1alpha1.NewForConfig(&configShallowCopy)
+	cs.batchV1, err = batchv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +93,8 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.appawarecontrollerV1 = appawarecontrollerv1.NewForConfigOrDie(c)
 	cs.autoscalingV1alpha1 = autoscalingv1alpha1.NewForConfigOrDie(c)
+	cs.batchV1 = batchv1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -103,8 +103,8 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.appawarecontrollerV1 = appawarecontrollerv1.New(c)
 	cs.autoscalingV1alpha1 = autoscalingv1alpha1.New(c)
+	cs.batchV1 = batchv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

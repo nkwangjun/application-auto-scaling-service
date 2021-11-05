@@ -11,8 +11,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// +k8s:deepcopy-gen=package
-// +groupName=autoscaling.cce.io
+package batch
 
-// Package v1alpha1 is the v1alpha1 version of the API.
-package v1alpha1
+// GroupName is the group name used in this package
+const (
+	GroupName = "batch.nanto.io"
+	Version   = "v1"
+)

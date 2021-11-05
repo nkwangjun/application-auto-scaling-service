@@ -3,19 +3,19 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	clientset "k8s.io/application-aware-controller/pkg/client/clientset/versioned"
-	informers "k8s.io/application-aware-controller/pkg/client/informers/externalversions"
-	aacontroller "k8s.io/application-aware-controller/pkg/controller"
-	"k8s.io/application-aware-controller/pkg/signals"
-	"k8s.io/application-aware-controller/pkg/trafficstrategy"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+
+	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
+	informers "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions"
+	ftcontroller "nanto.io/application-auto-scaling-service/pkg/controller"
+	"nanto.io/application-auto-scaling-service/pkg/signals"
 )
 
 var (
@@ -37,49 +37,64 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Error building kubeconfig: %s", err.Error())
 	}
-
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Error building kubernetes clientset: %s", err.Error())
 	}
-
-	aacClient, err := clientset.NewForConfig(cfg)
+	crdClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Error building example clientset: %s", err.Error())
 	}
 
-	{
-		customedHorizontalPodAutoscaler, err := aacClient.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers("default").
-			Get(context.Background(), "customedhpa001", v1.GetOptions{})
+	{ // Debug
+		nodes, err := kubeClient.CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
 		if err != nil {
-			klog.Errorf(" === Get cce hpa err: %+v", err)
+			klog.Errorf("=== Get nodes err: %+v", err)
+			return
 		}
-		klog.Infof(" === Get cce hpa: %+v", customedHorizontalPodAutoscaler)
+		nodeNum := len(nodes.Items)
+		fmt.Printf("=== nodes info(total num[%d]):\n", nodeNum)
+		for i, node := range nodes.Items {
+			fmt.Printf("=== node[%d]: %s\n", i+1, node.Spec.ProviderID)
+		}
+		chpas, err := crdClient.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(ftcontroller.NamespaceDefault).
+			List(context.Background(), v1.ListOptions{})
+		if err != nil {
+			klog.Errorf("=== Get cce hpa err: %+v", err)
+			return
+		}
+		chpaNum := len(chpas.Items)
+		fmt.Printf("=== cce hpa info(total num[%d]):\n", chpaNum)
+		for i, chpa := range chpas.Items {
+			fmt.Printf("=== cce hpa[%d]: %s/%s\n", i+1, chpa.Namespace, chpa.Name)
+		}
 	}
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
-	aacInformerFactory := informers.NewSharedInformerFactory(aacClient, time.Second*30)
+	crdInformerFactory := informers.NewSharedInformerFactory(crdClient, time.Second*30)
 
-	controller := aacontroller.NewController(kubeClient, aacClient,
-		aacInformerFactory.Appawarecontroller().V1().AppawareHorizontalPodAutoscalers())
+	crdController := ftcontroller.NewController(kubeClient, crdClient, crdInformerFactory)
 
 	// notice that there is no need to run Start methods in a separate goroutine.
 	kubeInformerFactory.Start(stopCh)
-	aacInformerFactory.Start(stopCh)
+	crdInformerFactory.Start(stopCh)
 
-	if err = controller.Run(2, stopCh); err != nil {
+	//crdInformerFactory.ForResource(GVersion)
+	if err = crdController.Run(2, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err.Error())
 	}
 
-	server, err := trafficstrategy.NewWebServer(trafficStrategyAddr, forecastWindow, nodepoolConfig)
-	if err != nil {
-		klog.Fatalf("Error running controller: %s", err.Error())
-	}
+	// 注意上面 controller 的 Run 是阻塞的
+	//server, err := trafficstrategy.NewWebServer(trafficStrategyAddr, forecastWindow, nodepoolConfig)
+	//if err != nil {
+	//	klog.Fatalf("Error running controller: %s", err.Error())
+	//}
+	//
+	//// start traffic strategy webserver
+	//go func() {
+	//	server.Serve()
+	//}()
 
-	// start traffic strategy webserver
-	go func() {
-		server.Serve()
-	}()
 }
 
 func init() {

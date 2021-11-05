@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: application-auto-scaling-service
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: application-auto-scaling-service
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: application-auto-scaling-service
+    spec:
+      nodeName: myread1
+      serviceAccountName: application-auto-scaling-service-sa
+      containers:
+        - name: application-auto-scaling-service-container
+          image: 172.18.160.160:5000/application-auto-scaling-service-container:v1
+          imagePullPolicy: IfNotPresent

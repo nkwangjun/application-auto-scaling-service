@@ -25,11 +25,11 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
-	autoscalingv1alpha1 "k8s.io/application-aware-controller/pkg/apis/autoscaling/v1alpha1"
-	versioned "k8s.io/application-aware-controller/pkg/client/clientset/versioned"
-	internalinterfaces "k8s.io/application-aware-controller/pkg/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "k8s.io/application-aware-controller/pkg/client/listers/autoscaling/v1alpha1"
 	cache "k8s.io/client-go/tools/cache"
+	autoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/apis/autoscaling/v1alpha1"
+	versioned "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
+	internalinterfaces "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions/internalinterfaces"
+	v1alpha1 "nanto.io/application-auto-scaling-service/pkg/client/listers/autoscaling/v1alpha1"
 )
 
 // CustomedHorizontalPodAutoscalerInformer provides access to a shared informer and lister for

@@ -1,6 +1,4 @@
-// This is a generated file. Do not edit directly.
-
-module k8s.io/application-aware-controller
+module nanto.io/application-auto-scaling-service
 
 go 1.16
 

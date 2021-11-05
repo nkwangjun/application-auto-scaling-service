@@ -1,0 +1,14 @@
+apiVersion: batch.nanto.io/v1
+kind: ForecastTask
+metadata:
+  name: forecast-task-sample
+spec:
+  scaleTargetRefs:
+#    - apiVersion: autoscaling/v1
+#      kind: HorizontalPodAutoscaler
+#      name:  c3pool-hpa
+    - apiVersion: autoscaling.cce.io/v1alpha1
+      kind: CustomedHorizontalPodAutoscaler
+      name: customedhpa001
+  # 预测未来10分钟所需的副本数, 单位为分钟
+  forecastWindow: 1

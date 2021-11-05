@@ -2,141 +2,161 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-
-	v1 "k8s.io/application-aware-controller/pkg/apis/appawarecontroller/v1"
-
-	"k8s.io/client-go/tools/record"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
+
+	"nanto.io/application-auto-scaling-service/pkg/apis/autoscaling/v1alpha1"
+	batchv1 "nanto.io/application-auto-scaling-service/pkg/apis/batch/v1"
+	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
 )
 
-type Task interface {
-	ID() string
-	Name() string
-	SetID(id string)
-	Equals(task Task) bool
-	Run() (msg string, err error)
+const (
+	OperationTypeScaleUp   = "ScaleUp"
+	OperationTypeScaleDown = "ScaleDown"
+	RuleTypeMetric         = "Metric"
+	MetricOptScaleUp       = ">"
+	MetricOptScaleDown     = "<"
+)
+
+var task *TaskCustomHPA
+
+type TaskCustomHPA struct {
+	forecastTaskObj      *batchv1.ForecastTask
+	forecastWindowMinute int32
+	RefNames             []string
+	kubeClientset        kubernetes.Interface
+	crdClientset         clientset.Interface
+	recorder             record.EventRecorder
+	cancelFunc           context.CancelFunc
 }
 
-/*type TargetRef struct {
-	RefName      string
-	RefNamespace string
-	//RefKind      string
-	//RefGroup     string
-	//RefVersion   string
-}
-*/
-
-var taskHPA *TaskHPA
-
-type TaskHPA struct {
-	//TargetRef            *TargetRef
-	hpaNamespace         string
-	hpaName              string
-	forecastPeriodMinute int32
-	ahpa                 *v1.AppawareHorizontalPodAutoscaler
-	//HPARef       *v1beta1.CronHorizontalPodAutoscaler
-	//id           string
-	//name         string
-	//DesiredSize  int32
-	//Plan         string
-	//RunOnce      bool
-	//scaler       scaleclient.ScalesGetter
-	//mapper       apimeta.RESTMapper
-	//excludeDates []string
-	kubeclientset kubernetes.Interface
-	recorder      record.EventRecorder
-	cancelFunc    context.CancelFunc
-}
-
-func RunTaskHPA(ahpa *v1.AppawareHorizontalPodAutoscaler, kubeclientset kubernetes.Interface,
+func RunTaskCustomHPA(forecastTask *batchv1.ForecastTask, kubeClientset kubernetes.Interface, crdClientset clientset.Interface,
 	recorder record.EventRecorder) {
 	ctx, cancel := context.WithCancel(context.Background())
-	taskHPA = &TaskHPA{
-		hpaNamespace:         NamespaceDefault,
-		hpaName:              ahpa.Spec.ScaleTargetRef.Name,
-		forecastPeriodMinute: *ahpa.Spec.ForecastWindow,
-		ahpa:                 ahpa,
-		kubeclientset:        kubeclientset,
+	task = &TaskCustomHPA{
+		forecastTaskObj:      forecastTask,
+		RefNames:             []string{forecastTask.Spec.ScaleTargetRefs[0].Name},
+		forecastWindowMinute: *forecastTask.Spec.ForecastWindow,
+		kubeClientset:        kubeClientset,
+		crdClientset:         crdClientset,
 		recorder:             recorder,
 		cancelFunc:           cancel,
 	}
-	go taskHPA.run(ctx)
+	go task.run(ctx)
 }
 
-func StopTaskHPA(obj interface{}) {
+func StopTaskCustomHPA(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
 		utilruntime.HandleError(err)
 		return
 	}
-	klog.Info("删除ahpa:", key)
-	if taskHPA == nil {
-		return
-	}
-	taskHPA.stop()
-	taskHPA = nil
-}
-
-func (t *TaskHPA) stop() {
-	if t.cancelFunc != nil {
-		t.cancelFunc()
+	klog.Info("Stop forecast task:", key)
+	task.stop()
+	if task != nil && task.cancelFunc != nil {
+		task.cancelFunc()
 	}
 }
 
-func (t *TaskHPA) run(ctx context.Context) {
+func (t *TaskCustomHPA) run(ctx context.Context) {
 	t.forecastAndUpdateHPA()
-	ticker := time.NewTicker(time.Duration(t.forecastPeriodMinute) * time.Minute)
+	ticker := time.NewTicker(time.Duration(t.forecastWindowMinute) * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			go t.forecastAndUpdateHPA()
 		case <-ctx.Done():
-			klog.Info("TaskHPA exit")
+			klog.Info("Task exit")
 			return
 		}
 	}
 }
 
-func (t *TaskHPA) forecastAndUpdateHPA() {
-	// todo 请求天策、global-scheduler api
-	forecastReplicas := int32(rand.IntnRange(1, 6))
-	klog.Info("预测worker数：", forecastReplicas)
-	ctx := context.Background()
-	hpa, err := t.kubeclientset.AutoscalingV1().HorizontalPodAutoscalers(t.hpaNamespace).
-		Get(ctx, t.hpaName, metav1.GetOptions{})
-	if err != nil {
-		klog.Errorf("Get HPA err: %v", err)
-		return
+func (t *TaskCustomHPA) stop() {
+	if t.cancelFunc != nil {
+		t.cancelFunc()
 	}
-	if hpa.Status.CurrentReplicas == forecastReplicas {
-		klog.Info("当前worker数满足预测，无需更新hpa")
-		return
-	}
-	// todo 这里当前副本 ！= 预测副本，会不会hpa已经改了，如果已经改了，再次update会有什么结果，测试下
-	klog.Infof("当前hpa[%s]对应的worker数[%d] != 预测worker数[%d]",
-		t.hpaName, hpa.Status.CurrentReplicas, forecastReplicas)
-	hpa.Spec.MinReplicas = &forecastReplicas
-	hpa.Spec.MaxReplicas = forecastReplicas
-	update, err := t.kubeclientset.AutoscalingV1().HorizontalPodAutoscalers(t.hpaNamespace).
-		Update(ctx, hpa, metav1.UpdateOptions{})
-	if err != nil {
-		klog.Errorf("Update HPA err: %v", err)
-		return
-	}
-	//t.recorder.Eventf(t.ahpa, corev1.EventTypeNormal)
-	t.recorder.Eventf(t.ahpa, corev1.EventTypeNormal, SuccessExecuted, MessagePredictionOperationExecuted,
-		*update.Spec.MinReplicas, update.Spec.MaxReplicas)
+}
 
-	klog.Infof("Update HPA success, HPA minReplicas[%d] maxReplicas[%d]",
-		*update.Spec.MinReplicas, update.Spec.MaxReplicas)
+func (t *TaskCustomHPA) forecastAndUpdateHPA() {
+	// todo 请求天策预测接口
+	isScaleUp := time.Now().Second() > 30
+	if isScaleUp {
+		klog.Info("=== 预测趋势：扩容")
+	} else {
+		klog.Info("=== 预测趋势：缩容")
+	}
+	metricValue := float32(rand.IntnRange(1, 99)) / 100
+	klog.Info("=== 预测指标 metricValue：", metricValue)
+	stepVal := int32(rand.IntnRange(1, 6))
+	klog.Info("=== 预测步长 stepVal：", stepVal)
+
+	ctx := context.Background()
+	chpa, err := t.crdClientset.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
+		Get(ctx, t.RefNames[0], metav1.GetOptions{})
+	if err != nil {
+		klog.Errorf("Get CustomHPA err: %v", err)
+		return
+	}
+
+	modifyRule(&chpa.Spec.Rules[0], isScaleUp, metricValue, stepVal)
+	update, err := t.crdClientset.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
+		Update(ctx, chpa, metav1.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("Update CustomHPA err: %v", err)
+		return
+	}
+
+	t.recorder.Eventf(t.forecastTaskObj, corev1.EventTypeNormal, SuccessExecuted, MessagePredictionOperationExecuted,
+		isScaleUp, metricValue, stepVal)
+	klog.Infof("Update HPA success, current HPA info: %+v", update)
+}
+
+/*
+	rule example:
+	v1alpha1.Rule{
+		Actions: []v1alpha1.Action{
+			{
+				MetricRange:   fmt.Sprintf("%.2f,+Infinity", metricValue),
+				OperationType: OperationTypeScaleUp,
+				//OperationUnit:  "Task",
+				OperationValue: &stepVal,
+			},
+		},
+		Disable: &ruleDisableFalse,
+		MetricTrigger: v1alpha1.MetricTrigger{
+			//HitThreshold:    1,
+			//MetricName:      "CPURatioToRequest",
+			MetricOperation: MetricOptScaleUp,
+			MetricValue:     &metricValue,
+			//PeriodSeconds:   60,
+			//Statistic:       "instantaneous",
+		},
+		//RuleName: "up",
+		//RuleType: "Metric",
+	}
+*/
+func modifyRule(rule *v1alpha1.Rule, isScaleUp bool, metricValue float32, stepVal int32) {
+	if isScaleUp {
+		rule.Actions[0].MetricRange = fmt.Sprintf("%.2f,+Infinity", metricValue)
+		rule.Actions[0].OperationType = OperationTypeScaleUp
+		rule.MetricTrigger.MetricOperation = MetricOptScaleUp
+	} else {
+		rule.Actions[0].MetricRange = fmt.Sprintf("0.00,%.2f", metricValue)
+		rule.Actions[0].OperationType = OperationTypeScaleDown
+		rule.MetricTrigger.MetricOperation = MetricOptScaleDown
+	}
+
+	rule.Actions[0].OperationValue = &stepVal
+	rule.MetricTrigger.MetricValue = &metricValue
 }

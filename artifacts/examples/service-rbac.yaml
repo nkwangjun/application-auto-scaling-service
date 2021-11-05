@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: application-auto-scaling-service-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: application-auto-scaling-service-clusterrole
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - pods
+      - secrets
+      - endpoints
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - batch.nanto.io
+    resources:
+      - forecasttasks
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+  - apiGroups:
+      - autoscaling.cce.io
+    resources:
+      - customedhorizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: application-auto-scaling-service-clusterrolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: application-auto-scaling-service-clusterrole
+subjects:
+  - kind: ServiceAccount
+    name: application-auto-scaling-service-sa
+    namespace: default

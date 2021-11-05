@@ -19,7 +19,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	internalinterfaces "k8s.io/application-aware-controller/pkg/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

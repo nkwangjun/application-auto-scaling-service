@@ -26,11 +26,11 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	versioned "k8s.io/application-aware-controller/pkg/client/clientset/versioned"
-	appawarecontroller "k8s.io/application-aware-controller/pkg/client/informers/externalversions/appawarecontroller"
-	autoscaling "k8s.io/application-aware-controller/pkg/client/informers/externalversions/autoscaling"
-	internalinterfaces "k8s.io/application-aware-controller/pkg/client/informers/externalversions/internalinterfaces"
 	cache "k8s.io/client-go/tools/cache"
+	versioned "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
+	autoscaling "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions/autoscaling"
+	batch "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions/batch"
+	internalinterfaces "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // SharedInformerOption defines the functional option type for SharedInformerFactory.
@@ -173,14 +173,14 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Appawarecontroller() appawarecontroller.Interface
 	Autoscaling() autoscaling.Interface
-}
-
-func (f *sharedInformerFactory) Appawarecontroller() appawarecontroller.Interface {
-	return appawarecontroller.New(f, f.namespace, f.tweakListOptions)
+	Batch() batch.Interface
 }
 
 func (f *sharedInformerFactory) Autoscaling() autoscaling.Interface {
 	return autoscaling.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Batch() batch.Interface {
+	return batch.New(f, f.namespace, f.tweakListOptions)
 }

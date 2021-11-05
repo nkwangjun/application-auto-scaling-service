@@ -1,9 +1,9 @@
-# application-aware-controller
+# application-auto-scaling-service
 
 This repository implements a simple controller for watching Foo resources as
 defined with a CustomResourceDefinition (CRD).
 
-**Note:** go-get or vendor this package as `k8s.io/application-aware-controller`.
+**Note:** go-get or vendor this package as `nanto.io/application-auto-scaling-service`.
 
 This particular example demonstrates how to perform basic operations such as:
 
@@ -18,7 +18,7 @@ do this yourself using the `./hack/update-codegen.sh` script.
 The `update-codegen` script will automatically generate the following files &
 directories:
 
-* `pkg/apis/appawarecontroller/v1/zz_generated.deepcopy.go`
+* `pkg/apis/batch/v1/zz_generated.deepcopy.go`
 * `pkg/generated/`
 
 Changes should not be made to these files manually, and when creating your own
@@ -31,9 +31,9 @@ The ahpa controller uses [client-go library](https://github.com/kubernetes/clien
 The details of interaction points of the ahpa controller with various mechanisms from this library are
 explained [here](docs/controller-client-go.md).
 
-## Fetch application-aware-controller and its dependencies
+## Fetch application-auto-scaling-service and its dependencies
 
-Like the rest of Kubernetes, application-aware-controller has used
+Like the rest of Kubernetes, application-auto-scaling-service has used
 [godep](https://github.com/tools/godep) and `$GOPATH` for years and is
 now adopting go 1.11 modules.  There are thus two alternative ways to
 go about fetching this demo and its dependencies.
@@ -43,8 +43,8 @@ go about fetching this demo and its dependencies.
 When NOT using go 1.11 modules, you can use the following commands.
 
 ```sh
-go get -d k8s.io/application-aware-controller
-cd $GOPATH/src/k8s.io/application-aware-controller
+go get -d nanto.io/application-auto-scaling-service
+cd $GOPATH/src/nanto.io/application-auto-scaling-service
 godep restore
 ```
 
@@ -54,8 +54,8 @@ When using go 1.11 modules (`GO111MODULE=on`), issue the following
 commands --- starting in whatever working directory you like.
 
 ```sh
-git clone https://github.com/nkwangjun/application-aware-controller.git
-cd application-aware-controller
+git clone https://github.com/helloliuyiyang/application-auto-scaling-service
+cd application-auto-scaling-service
 ```
 
 Note, however, that if you intend to
@@ -69,7 +69,7 @@ populate the `vendor` directory.
 If you are developing Kubernetes according to
 https://github.com/kubernetes/community/blob/master/contributors/guide/github-workflow.md
 then you already have a copy of this demo in
-`kubernetes/staging/src/k8s.io/application-aware-controller` and its dependencies
+`kubernetes/staging/src/nanto.io/application-auto-scaling-service` and its dependencies
 --- including the code generator --- are in usable locations
 (valid for all Go versions).
 
@@ -79,19 +79,19 @@ This is an example of how to build a kube-like controller with a single type.
 
 ## Running
 
-**Prerequisite**: Since the application-aware-controller uses `apps/v1` deployments, the Kubernetes cluster version should be greater than 1.9.
+**Prerequisite**: Since the application-auto-scaling-service uses `apps/v1` deployments, the Kubernetes cluster version should be greater than 1.9.
 
 ```sh
 # assumes you have a working kubeconfig, not required if operating in-cluster
-go build -o application-aware-controller .
-./application-aware-controller -kubeconfig=$HOME/.kube/config
+go build -o application-auto-scaling-service .
+./application-auto-scaling-service -kubeconfig=$HOME/.kube/config
 
 # create a CustomResourceDefinition
-kubectl create -f artifacts/examples/crd-app-aware-hpa.yaml
+kubectl create -f artifacts/examples/crd/crd-forecast-task.yaml
 
-# create a custom resource of type ahpa
-kubectl create -f artifacts/examples/example-deployment-appaware-hpa.yaml
+# create a custom resource of type forecast-task
+kubectl create -f artifacts/examples/obj/forecast-task.yaml
 
 # check deployments created through the custom resource
-kubectl get ahpas
+kubectl get ft
 ```

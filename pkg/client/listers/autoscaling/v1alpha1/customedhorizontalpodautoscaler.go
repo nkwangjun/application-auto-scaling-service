@@ -21,8 +21,8 @@ package v1alpha1
 import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
-	v1alpha1 "k8s.io/application-aware-controller/pkg/apis/autoscaling/v1alpha1"
 	"k8s.io/client-go/tools/cache"
+	v1alpha1 "nanto.io/application-auto-scaling-service/pkg/apis/autoscaling/v1alpha1"
 )
 
 // CustomedHorizontalPodAutoscalerLister helps list CustomedHorizontalPodAutoscalers.
