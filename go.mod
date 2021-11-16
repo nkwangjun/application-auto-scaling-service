@@ -4,6 +4,8 @@ go 1.16
 
 require (
 	github.com/gorilla/mux v1.8.0
+	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.8+incompatible
+	github.com/pkg/errors v0.9.1
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.0.0-20211001003357-dd4141958dfc
 	k8s.io/apimachinery v0.0.0-20211001003147-df63df3af3fc

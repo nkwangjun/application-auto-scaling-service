@@ -16,6 +16,7 @@ import (
 	informers "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions"
 	ftcontroller "nanto.io/application-auto-scaling-service/pkg/controller"
 	"nanto.io/application-auto-scaling-service/pkg/signals"
+	"nanto.io/application-auto-scaling-service/pkg/vega"
 )
 
 var (
@@ -47,16 +48,6 @@ func main() {
 	}
 
 	{ // Debug
-		nodes, err := kubeClient.CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
-		if err != nil {
-			klog.Errorf("=== Get nodes err: %+v", err)
-			return
-		}
-		nodeNum := len(nodes.Items)
-		fmt.Printf("=== nodes info(total num[%d]):\n", nodeNum)
-		for i, node := range nodes.Items {
-			fmt.Printf("=== node[%d]: %s\n", i+1, node.Spec.ProviderID)
-		}
 		chpas, err := crdClient.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(ftcontroller.NamespaceDefault).
 			List(context.Background(), v1.ListOptions{})
 		if err != nil {
@@ -79,7 +70,10 @@ func main() {
 	kubeInformerFactory.Start(stopCh)
 	crdInformerFactory.Start(stopCh)
 
-	//crdInformerFactory.ForResource(GVersion)
+	// todo 获取 clusterId，目前看 configmap 里面的 clusterId 不是太靠谱，后面确认下
+	clusterId := "mock_cluster_id"
+	go vega.SyncNodeIdsToOBS(clusterId, kubeClient, stopCh)
+
 	if err = crdController.Run(2, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err.Error())
 	}
@@ -94,7 +88,6 @@ func main() {
 	//go func() {
 	//	server.Serve()
 	//}()
-
 }
 
 func init() {
