@@ -12,21 +12,21 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
+	"nanto.io/application-auto-scaling-service/config"
 	"nanto.io/application-auto-scaling-service/pkg/utils"
-	"nanto.io/application-auto-scaling-service/resources"
 )
-
-const syncNodeIdsToOBSInterval = 10 * time.Second
 
 func SyncNodeIdsToOBS(clusterId string, kubeClient *kubernetes.Clientset, stopCh <-chan struct{}) {
 	var (
 		nodeIds []string
 		err     error
 	)
-	localFilePath := fmt.Sprintf(resources.ObsSourceFileTemplate, clusterId)
+	localFilePath := fmt.Sprintf(config.ObsSourceFileTemplate, clusterId)
+	ticker := time.NewTicker(config.SyncNodeIdsToOBSInterval)
+	defer ticker.Stop()
 	for {
 		select {
-		case <-time.After(syncNodeIdsToOBSInterval):
+		case <-ticker.C:
 			nodeIds, err = getNodeIds(kubeClient)
 			if err != nil {
 				return
@@ -38,7 +38,7 @@ func SyncNodeIdsToOBS(clusterId string, kubeClient *kubernetes.Clientset, stopCh
 				continue
 			}
 
-			utils.SendFileToOBS(clusterId, localFilePath)
+			utils.SendNodeIdsFileToOBS(clusterId, localFilePath)
 		case <-stopCh:
 			klog.Info("=== SyncNodeIdsToOBS exit ===")
 			return

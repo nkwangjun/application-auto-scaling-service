@@ -2,12 +2,13 @@ package controller
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/robfig/cron/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -17,19 +18,13 @@ import (
 	"nanto.io/application-auto-scaling-service/pkg/apis/autoscaling/v1alpha1"
 	batchv1 "nanto.io/application-auto-scaling-service/pkg/apis/batch/v1"
 	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
-)
-
-const (
-	OperationTypeScaleUp   = "ScaleUp"
-	OperationTypeScaleDown = "ScaleDown"
-	RuleTypeMetric         = "Metric"
-	MetricOptScaleUp       = ">"
-	MetricOptScaleDown     = "<"
+	"nanto.io/application-auto-scaling-service/pkg/utils"
 )
 
 var task *TaskCustomHPA
 
 type TaskCustomHPA struct {
+	clusterId            string
 	forecastTaskObj      *batchv1.ForecastTask
 	forecastWindowMinute int32
 	RefNames             []string
@@ -37,17 +32,20 @@ type TaskCustomHPA struct {
 	crdClientset         clientset.Interface
 	recorder             record.EventRecorder
 	cancelFunc           context.CancelFunc
+	// todo 后面放到syncer
+	StrategiesCreateTime int64
 }
 
-func RunTaskCustomHPA(forecastTask *batchv1.ForecastTask, kubeClientset kubernetes.Interface, crdClientset clientset.Interface,
+func RunTaskCustomHPA(forecastTask *batchv1.ForecastTask, clusterId string, kubeClient kubernetes.Interface, crdClient clientset.Interface,
 	recorder record.EventRecorder) {
 	ctx, cancel := context.WithCancel(context.Background())
 	task = &TaskCustomHPA{
+		clusterId:            clusterId,
 		forecastTaskObj:      forecastTask,
 		RefNames:             []string{forecastTask.Spec.ScaleTargetRefs[0].Name},
 		forecastWindowMinute: *forecastTask.Spec.ForecastWindow,
-		kubeClientset:        kubeClientset,
-		crdClientset:         crdClientset,
+		kubeClientset:        kubeClient,
+		crdClientset:         crdClient,
 		recorder:             recorder,
 		cancelFunc:           cancel,
 	}
@@ -76,7 +74,7 @@ func (t *TaskCustomHPA) run(ctx context.Context) {
 		case <-ticker.C:
 			go t.forecastAndUpdateHPA()
 		case <-ctx.Done():
-			klog.Info("Task exit")
+			klog.Info("=== Task exit ===")
 			return
 		}
 	}
@@ -88,7 +86,103 @@ func (t *TaskCustomHPA) stop() {
 	}
 }
 
+type StrategiesInfo struct {
+	ClusterId  string `json:"cluster_id"`
+	CreateTime int64  `json:"create_time"` // 策略创建时间，时间戳（毫秒）
+	Strategies []Strategy
+}
+
+type Strategy struct {
+	StartTime string                                       `json:"start_time"`
+	Spec      v1alpha1.CustomedHorizontalPodAutoscalerSpec `json:"spec"`
+}
+
 func (t *TaskCustomHPA) forecastAndUpdateHPA() {
+	// 从 天策 获取扩缩容策略
+	strategiesBytes, err := utils.GetStrategiesFromTianCe(t.clusterId)
+	if err != nil {
+		klog.Errorf("GetStrategiesFromTianCe err: %+v", err)
+		// todo 记录 event
+		return
+	}
+	strategiesInfo := &StrategiesInfo{}
+	err = json.Unmarshal(strategiesBytes, strategiesInfo)
+	if err != nil {
+		klog.Errorf("Unmarshal strategiesBytes err: %v", err)
+		return
+	}
+	klog.Infof("Strategies info: %+v", strategiesInfo)
+
+	if strategiesInfo.CreateTime == t.StrategiesCreateTime {
+		klog.Infof("No change in strategies")
+		return
+	}
+
+	// 刷新定时任务
+	GetCron().Stop()
+	RemoveAllCronEntries()
+	for _, s := range strategiesInfo.Strategies {
+		_, err := GetCron().AddFunc(s.StartTime, genCronFunc(t, s.Spec))
+		if err != nil {
+			klog.Errorf("jobCron add func err: %v", err)
+			return
+		}
+	}
+	GetCron().Start()
+	// 更新执行当前策略
+	jobExecNow, err := FindJobNeedExecNow()
+	if err != nil {
+		klog.Errorf("FindJobNeedExecNow err: %+v", err)
+		return
+	}
+	jobExecNow.Run()
+
+	// 更新策略时间戳记录
+	t.StrategiesCreateTime = strategiesInfo.CreateTime
+}
+
+func genCronFunc(t *TaskCustomHPA, newSpec v1alpha1.CustomedHorizontalPodAutoscalerSpec) cron.FuncJob {
+	return func() {
+		ctx := context.Background()
+		curHpa, err := t.crdClientset.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
+			Get(ctx, t.RefNames[0], metav1.GetOptions{})
+		if err != nil {
+			t.recorder.Eventf(t.forecastTaskObj, corev1.EventTypeWarning, CronTaskError,
+				"Get current customHPA err: %v", err)
+			klog.Errorf("Get current customHPA err: %v", err)
+			return
+		}
+
+		newSpec.ScaleTargetRef = curHpa.Spec.ScaleTargetRef
+		newSpec.DeepCopyInto(&curHpa.Spec)
+
+		update, err := t.crdClientset.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
+			Update(ctx, curHpa, metav1.UpdateOptions{})
+		if err != nil {
+			t.recorder.Eventf(t.forecastTaskObj, corev1.EventTypeWarning, CronTaskError,
+				"Update CustomHPA err: %v", err)
+			klog.Errorf("Update CustomHPA err: %v", err)
+			return
+		}
+
+		bytes, err := json.Marshal(update.Spec)
+		if err != nil {
+			klog.Fatalf("Marshal hpa spec[%+v] err: %v", update.Spec, err)
+		}
+		t.recorder.Eventf(t.forecastTaskObj, corev1.EventTypeNormal, SuccessRefreshStrategies,
+			MessageStrategiesRefreshedFmt, bytes)
+		klog.Infof("Update HPA success, current HPA info: %+v", update.Spec)
+	}
+}
+
+/*
+const (
+	OperationTypeScaleUp   = "ScaleUp"
+	OperationTypeScaleDown = "ScaleDown"
+	RuleTypeMetric         = "Metric"
+	MetricOptScaleUp       = ">"
+	MetricOptScaleDown     = "<"
+)
 	// todo 请求天策预测接口
 	isScaleUp := time.Now().Second() > 30
 	if isScaleUp {
@@ -102,26 +196,27 @@ func (t *TaskCustomHPA) forecastAndUpdateHPA() {
 	klog.Info("=== 预测步长 stepVal：", stepVal)
 
 	ctx := context.Background()
-	chpa, err := t.crdClientset.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
+	chpa, err := t.crdClient.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
 		Get(ctx, t.RefNames[0], metav1.GetOptions{})
 	if err != nil {
 		klog.Errorf("Get CustomHPA err: %v", err)
 		return
 	}
 
-	modifyRule(&chpa.Spec.Rules[0], isScaleUp, metricValue, stepVal)
-	update, err := t.crdClientset.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
+	// 修改特定字段
+	//modifyRule(&chpa.Spec.Rules[0], isScaleUp, metricValue, stepVal)
+
+	update, err := t.crdClient.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
 		Update(ctx, chpa, metav1.UpdateOptions{})
 	if err != nil {
 		klog.Errorf("Update CustomHPA err: %v", err)
 		return
 	}
 
-	t.recorder.Eventf(t.forecastTaskObj, corev1.EventTypeNormal, SuccessExecuted, MessagePredictionOperationExecuted,
+	t.recorder.Eventf(t.forecastTaskObj, corev1.EventTypeNormal, SuccessExecuted, MessageStrategiesRefreshedFmt,
 		isScaleUp, metricValue, stepVal)
 	klog.Infof("Update HPA success, current HPA info: %+v", update)
-}
-
+*/
 /*
 	rule example:
 	v1alpha1.Rule{
@@ -145,7 +240,10 @@ func (t *TaskCustomHPA) forecastAndUpdateHPA() {
 		//RuleName: "up",
 		//RuleType: "Metric",
 	}
-*/
+
+		// 修改特定字段
+		//modifyRule(&oldHpa.Spec.Rules[0], isScaleUp, metricValue, stepVal)
+
 func modifyRule(rule *v1alpha1.Rule, isScaleUp bool, metricValue float32, stepVal int32) {
 	if isScaleUp {
 		rule.Actions[0].MetricRange = fmt.Sprintf("%.2f,+Infinity", metricValue)
@@ -160,3 +258,4 @@ func modifyRule(rule *v1alpha1.Rule, isScaleUp bool, metricValue float32, stepVa
 	rule.Actions[0].OperationValue = &stepVal
 	rule.MetricTrigger.MetricValue = &metricValue
 }
+*/

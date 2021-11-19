@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"k8s.io/klog/v2"
 
 	servicev1 "nanto.io/application-auto-scaling-service/pkg/apis/batch/v1"
+	apiextensionsclientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
 	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
 	aassscheme "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/scheme"
 	"nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions"
@@ -35,8 +37,11 @@ const (
 	// ErrResourceExists is used as part of the Event 'reason' when a ForecastTask fails
 	// to sync due to a Deployment of the same name already existing.
 	ErrResourceExists = "ErrResourceExists"
-	// SuccessSynced is used as part of the Event 'reason' when a ForecastTask prediction operation is executed
-	SuccessExecuted = "Executed"
+
+	// 刷新 CustomedHPA 扩缩容策略成功
+	SuccessRefreshStrategies = "StrategiesRefreshed"
+	// Cron 任务执行错误
+	CronTaskError = "ErrorExecCron"
 
 	// MessageResourceExists is the message used for Events when a resource
 	// fails to sync due to a Deployment already existing
@@ -44,23 +49,22 @@ const (
 	// MessageResourceSynced is the message used for an Event fired when a ForecastTask
 	// is synced successfully
 	MessageResourceSynced = "ForecastTask synced successfully"
-	// MessageResourceSynced is the message used for an Event fired when
-	// ForecastTask prediction operation is executed
-	MessagePredictionOperationExecuted = "Prediction operation is executed, changed the HPA values to isScaleUp[%t] " +
-		"metricValue[%.2f] stepVal[%d]"
+
+	MessageStrategiesRefreshedFmt = "Strategies is refreshed as: %s"
 )
 
 // Controller is the controller implementation for aass and chpa resources
 type Controller struct {
-	// kubeClientset is a standard kubernetes clientset
-	kubeClientset kubernetes.Interface
-	// crdClientset is a clientset for our own API group
-	crdClientset clientset.Interface
+	clusterId string
+	// kubeClient is a standard kubernetes clientset
+	kubeClient kubernetes.Interface
+	// crdClient is a clientset for our own API group
+	crdClient clientset.Interface
 
-	ftLister batchlisters.ForecastTaskLister
-	ftSynced cache.InformerSynced
-
+	ftLister   batchlisters.ForecastTaskLister
 	chpaLister autoscalinglisters.CustomedHorizontalPodAutoscalerLister
+
+	ftSynced   cache.InformerSynced
 	chpaSynced cache.InformerSynced
 
 	// workqueue is a rate limited work queue. This is used to queue work to be
@@ -76,10 +80,10 @@ type Controller struct {
 
 // NewController returns a new controller
 func NewController(
-	kubeClientset kubernetes.Interface,
-	crdClientset clientset.Interface,
+	clusterId string,
+	kubeClient kubernetes.Interface,
+	crdClient apiextensionsclientset.Interface,
 	crdInformerFactory externalversions.SharedInformerFactory) *Controller {
-
 	// Create event broadcaster
 	// Add forecast-task types to the default Kubernetes Scheme so Events can be
 	// logged for forecast-task types.
@@ -87,18 +91,19 @@ func NewController(
 	klog.V(4).Info("Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartStructuredLogging(0)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClientset.CoreV1().Events("")})
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 
 	ftInformer := crdInformerFactory.Batch().V1().ForecastTasks()
 	chpaInformer := crdInformerFactory.Autoscaling().V1alpha1().CustomedHorizontalPodAutoscalers()
 	controller := &Controller{
-		kubeClientset: kubeClientset,
-		crdClientset:  crdClientset,
-		ftLister:      ftInformer.Lister(),
-		ftSynced:      ftInformer.Informer().HasSynced,
-		chpaLister:    chpaInformer.Lister(),
-		chpaSynced:    chpaInformer.Informer().HasSynced,
+		clusterId:  clusterId,
+		kubeClient: kubeClient,
+		crdClient:  crdClient,
+		ftLister:   ftInformer.Lister(),
+		ftSynced:   ftInformer.Informer().HasSynced,
+		chpaLister: chpaInformer.Lister(),
+		chpaSynced: chpaInformer.Informer().HasSynced,
 
 		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(),
 			"ForecastTasks"),
@@ -128,7 +133,7 @@ func NewController(
 // as syncing informer caches and starting workers. It will block until stopCh
 // is closed, at which point it will shutdown the workqueue and wait for
 // workers to finish processing their current work items.
-func (c *Controller) Run(workers int, stopCh <-chan struct{}) error {
+func (c *Controller) Run(workers int, stopCh <-chan struct{}, cancel context.CancelFunc) {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
@@ -138,7 +143,8 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) error {
 	// Wait for the caches to be synced before starting workers
 	klog.Info("Waiting for informer caches to sync")
 	if ok := cache.WaitForCacheSync(stopCh, c.ftSynced, c.chpaSynced); !ok {
-		return fmt.Errorf("failed to wait for caches to sync")
+		klog.Error("failed to wait for caches to sync")
+		cancel()
 	}
 
 	klog.Info("Starting workers")
@@ -146,12 +152,6 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) error {
 	for i := 0; i < workers; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
-
-	klog.Info("Started workers")
-	<-stopCh
-	klog.Info("Shutting down workers")
-
-	return nil
 }
 
 // runWorker is a long-running function that will continually call the
@@ -250,7 +250,7 @@ func (c *Controller) syncHandler(key string) error {
 
 	klog.Infof("Receive ForecastTask obj, ScaleTargetRefs[%s/%s], ForecastWindow[%dmin]",
 		NamespaceDefault, ft.Spec.ScaleTargetRefs[0].Name, *ft.Spec.ForecastWindow)
-	RunTaskCustomHPA(ft, c.kubeClientset, c.crdClientset, c.recorder)
+	RunTaskCustomHPA(ft, c.clusterId, c.kubeClient, c.crdClient, c.recorder)
 
 	c.recorder.Event(ft, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
 	return nil

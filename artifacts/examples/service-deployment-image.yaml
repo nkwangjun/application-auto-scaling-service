@@ -19,3 +19,6 @@ spec:
         - name: application-auto-scaling-service-container
           image: 172.18.160.160:5000/application-auto-scaling-service-container:v1
           imagePullPolicy: IfNotPresent
+      env:
+        - name: CLUSTER_ID
+          value: "d8654144-325b-11ec-9ee1-0255ac101fe8"
