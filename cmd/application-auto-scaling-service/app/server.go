@@ -48,7 +48,9 @@ func Run() error {
 	// 启动 application-auto-scaling-service 服务
 	if err := startService(clusterId, stopCh, cancel); err != nil {
 		klog.Errorf("Start service err: %+v", err)
+		return err
 	}
+	klog.Info("=== Start application-auto-scaling-service success ===")
 
 	sigCh := make(chan os.Signal, 2)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
