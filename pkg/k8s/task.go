@@ -1,4 +1,4 @@
-package controller
+package k8s
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"nanto.io/application-auto-scaling-service/pkg/apis/autoscaling/v1alpha1"
 	batchv1 "nanto.io/application-auto-scaling-service/pkg/apis/batch/v1"
 	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
-	"nanto.io/application-auto-scaling-service/pkg/utils"
+	"nanto.io/application-auto-scaling-service/pkg/obsutil"
 )
 
 var task *TaskCustomHPA
@@ -99,19 +99,19 @@ type Strategy struct {
 
 func (t *TaskCustomHPA) forecastAndUpdateHPA() {
 	// 从 天策 获取扩缩容策略
-	strategiesBytes, err := utils.GetStrategiesFromTianCe(t.clusterId)
+	strategiesBytes, err := obsutil.GetStrategiesFromTianCe(t.clusterId)
 	if err != nil {
 		klog.Errorf("GetStrategiesFromTianCe err: %+v", err)
 		// todo 记录 event
 		return
 	}
+	klog.Infof("Strategies info get from tiance: %s", strategiesBytes)
 	strategiesInfo := &StrategiesInfo{}
 	err = json.Unmarshal(strategiesBytes, strategiesInfo)
 	if err != nil {
 		klog.Errorf("Unmarshal strategiesBytes err: %v", err)
 		return
 	}
-	klog.Infof("Strategies info: %+v", strategiesInfo)
 
 	if strategiesInfo.CreateTime == t.StrategiesCreateTime {
 		klog.Infof("No change in strategies")
@@ -196,7 +196,7 @@ const (
 	klog.Info("=== 预测步长 stepVal：", stepVal)
 
 	ctx := context.Background()
-	chpa, err := t.crdClient.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
+	chpa, err := t.crdClientset.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
 		Get(ctx, t.RefNames[0], metav1.GetOptions{})
 	if err != nil {
 		klog.Errorf("Get CustomHPA err: %v", err)
@@ -206,7 +206,7 @@ const (
 	// 修改特定字段
 	//modifyRule(&chpa.Spec.Rules[0], isScaleUp, metricValue, stepVal)
 
-	update, err := t.crdClient.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
+	update, err := t.crdClientset.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
 		Update(ctx, chpa, metav1.UpdateOptions{})
 	if err != nil {
 		klog.Errorf("Update CustomHPA err: %v", err)

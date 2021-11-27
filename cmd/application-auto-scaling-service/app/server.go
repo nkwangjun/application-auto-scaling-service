@@ -2,51 +2,49 @@ package app
 
 import (
 	"context"
-	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 
 	"nanto.io/application-auto-scaling-service/config"
 	apiextensionsclientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
 	informers "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions"
-	"nanto.io/application-auto-scaling-service/pkg/controller"
+	"nanto.io/application-auto-scaling-service/pkg/confutil"
+	"nanto.io/application-auto-scaling-service/pkg/k8s"
+	"nanto.io/application-auto-scaling-service/pkg/logutil"
+	"nanto.io/application-auto-scaling-service/pkg/obsutil"
 	"nanto.io/application-auto-scaling-service/pkg/vega"
 )
 
 var (
-	masterURL  string
-	kubeconfig string
-	//trafficStrategyAddr string
-	//nodepoolConfig      string
+	logger = logutil.GetLogger()
+
+	//conf *confutil.Config
 )
 
-func Run() error {
-	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
-	flag.StringVar(&masterURL, "master", "", "The address of the Kubernetes API server. "+
-		"Overrides any value in kubeconfig. Only required if out-of-cluster.")
-	//flag.StringVar(&trafficStrategyAddr, "traffic-strategy-bind-address", ":6060", "The address the traffic strategy endpoint binds to.")
-	//flag.StringVar(&nodepoolConfig, "nodepool-config", "", "Path to a nodepoolconfig.")
-	flag.Parse()
-	//fmt.Println(kubeconfig, masterURL, trafficStrategyAddr, nodepoolConfig)
-
-	clusterId := os.Getenv("CLUSTER_ID")
-	if clusterId == "" {
-		clusterId = config.ClusterId
+func Run(configFile string) error {
+	// 读取配置、初始化log
+	conf, err := confutil.LoadConfig(configFile)
+	if err != nil {
+		return err
 	}
+	logutil.Init(&conf.LogConf)
+	logger.Infof("Load config: %+v", conf)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	stopCh := ctx.Done()
 	// 启动 application-auto-scaling-service 服务
-	if err := startService(clusterId, stopCh, cancel); err != nil {
+	if err := startService(ctx, conf, cancel); err != nil {
 		klog.Errorf("Start service err: %+v", err)
 		return err
 	}
@@ -65,32 +63,23 @@ func Run() error {
 		}
 	}
 	cancel()
-	controller.GetCron().Stop()
+	k8s.GetCron().Stop()
 	klog.Flush()
 	time.Sleep(time.Second)
 	return nil
 }
 
-func startService(clusterId string, stopCh <-chan struct{}, cancel context.CancelFunc) error {
+func startService(ctx context.Context, conf *confutil.Config, cancel context.CancelFunc) error {
 	// 初始化 k8s client set
-	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
-	if err != nil {
-		return errors.Wrap(err, "Error building kubeconfig")
-	}
-	kubeClient, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		return errors.Wrap(err, "Error building kubernetes clientset")
-	}
-	crdClient, err := apiextensionsclientset.NewForConfig(cfg)
-	if err != nil {
-		return errors.Wrap(err, "Error building example clientset")
+	if err := k8s.InitK8sClientSet(conf.KubeConfig); err != nil {
+		return err
 	}
 
 	{ // [Debug] 打印 cce cluster 中的 customed hpa 信息
-		chpas, err := crdClient.AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(controller.NamespaceDefault).
+		chpas, err := k8s.GetCrdClientSet().AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(k8s.NamespaceDefault).
 			List(context.Background(), metav1.ListOptions{})
 		if err != nil {
-			return errors.Wrap(err, "Get cce hpa err")
+			return errors.Wrap(err, "get cce hpa err")
 		}
 		chpaNum := len(chpas.Items)
 		for i, chpa := range chpas.Items {
@@ -98,16 +87,22 @@ func startService(clusterId string, stopCh <-chan struct{}, cancel context.Cance
 		}
 	}
 
+	// 初始化 ObsClient
+	obsCli, err := obsutil.NewObsClient(conf.ObsConfig.Endpoint, config.AK, config.SK)
+	if err != nil {
+		return err
+	}
 	// 同步 X实例 信息给 Vega
-	go vega.SyncNodeIdsToOBS(clusterId, kubeClient, stopCh)
+	go vega.NewNodeIdsSyncer(obsCli, &conf.ObsConfig, conf.ClusterId).SyncNodeIdsToOBS(ctx)
 
 	// 启动 Informer 和 controller
-	startInformerAndController(clusterId, kubeClient, crdClient, stopCh, cancel)
+	//startInformerAndController(conf.ClusterId, k8s.GetKubeClientSet(), k8s.GetCrdClientSet(), stopCh, cancel)
 
 	// 初始化定时任务（扩缩容策略需要定时修改）
-	controller.InitCron()
+	k8s.InitCron()
 
-	// todo 初始化 北向 api client
+	// todo 初始化 api http client
+	//NewHttpClient
 
 	// todo 启动 http server（给 conductor 提供分流策略）
 	//startHttpServer(stopCh)
@@ -121,7 +116,17 @@ func startInformerAndController(clusterId string, kubeClient kubernetes.Interfac
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	crdInformerFactory := informers.NewSharedInformerFactory(crdClient, time.Second*30)
 
-	crdController := controller.NewController(clusterId, kubeClient, crdClient, crdInformerFactory)
+	crdController := k8s.NewController(clusterId, kubeClient, crdClient, crdInformerFactory)
+	{
+		cmInformer := kubeInformerFactory.Core().V1().ConfigMaps()
+		cmInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				if newObj.(*v1.ConfigMap).Name == "aass-cm" {
+					fmt.Println("aass-cm 配置刷新了")
+				}
+			},
+		})
+	}
 
 	kubeInformerFactory.Start(stopCh)
 	crdInformerFactory.Start(stopCh)

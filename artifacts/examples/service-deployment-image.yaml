@@ -13,12 +13,24 @@ spec:
       labels:
         app: application-auto-scaling-service
     spec:
-      nodeName: myread1
+#      nodeName: myread1
       serviceAccountName: application-auto-scaling-service-sa
       containers:
         - name: application-auto-scaling-service-container
-          image: 172.18.160.160:5000/application-auto-scaling-service-container:v1
-          imagePullPolicy: IfNotPresent
-      env:
-        - name: CLUSTER_ID
-          value: "d8654144-325b-11ec-9ee1-0255ac101fe8"
+          image: swr.ap-southeast-1.myhuaweicloud.com/nanto/application-auto-scaling-service:v1
+          imagePullPolicy: Always
+          env:
+            - name: ClusterId
+              value: ""
+            - name: ObsEndpoint
+              value: "https://obs.cn-north-4.myhuaweicloud.com"
+            - name: ObsBucketName
+              value: "nanto-bucket"
+            - name: ObsSourceFileTemplate
+              value: "./resources/%s.txt"
+            - name: ObsObjectKeyNodeIdsTemplate
+              value: "transcode/aass/%s_nodeIds.txt"
+            - name: ObsObjectKeyStrategiesTemplate
+              value: "transcode/aass/%s_strategies.json"
+            - name: SyncNodeIdsToOBSIntervalMinute
+              value: "1"

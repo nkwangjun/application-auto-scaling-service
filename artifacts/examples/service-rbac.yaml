@@ -22,6 +22,7 @@ rules:
       - pods
       - secrets
       - endpoints
+      - nodes
     verbs:
       - get
       - list

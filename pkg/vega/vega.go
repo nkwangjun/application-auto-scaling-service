@@ -9,49 +9,85 @@ import (
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
-	"nanto.io/application-auto-scaling-service/config"
-	"nanto.io/application-auto-scaling-service/pkg/utils"
+	"nanto.io/application-auto-scaling-service/pkg/k8s"
+	"nanto.io/application-auto-scaling-service/pkg/logutil"
+	"nanto.io/application-auto-scaling-service/pkg/obsutil"
 )
 
-func SyncNodeIdsToOBS(clusterId string, kubeClient *kubernetes.Clientset, stopCh <-chan struct{}) {
-	var (
-		nodeIds []string
-		err     error
-	)
-	localFilePath := fmt.Sprintf(config.ObsSourceFileTemplate, clusterId)
-	ticker := time.NewTicker(config.SyncNodeIdsToOBSInterval)
+var logger = logutil.GetLogger()
+
+// NodeIdsSyncer 周期同步 X实例 信息给 Vega
+type NodeIdsSyncer struct {
+	obsCli    *obsutil.ObsClient
+	clusterId string
+	// obs bucket
+	bucket string
+	// 上传文件本地路径
+	srcPath string
+	// 上传文件目标路径（obs）
+	targetPath     string
+	intervalMinute time.Duration
+}
+
+func NewNodeIdsSyncer(obsCli *obsutil.ObsClient, obsConfig *obsutil.ObsConfig, clusterId string) *NodeIdsSyncer {
+	return &NodeIdsSyncer{
+		obsCli:         obsCli,
+		clusterId:      clusterId,
+		bucket:         obsConfig.BucketName,
+		srcPath:        fmt.Sprintf(obsConfig.SourceFileNodeIdsTemplate, clusterId),
+		targetPath:     fmt.Sprintf(obsConfig.ObjectKeyNodeIdsTemplate, clusterId),
+		intervalMinute: time.Duration(obsConfig.SyncNodeIdsToOBSIntervalMinute) * time.Minute,
+	}
+}
+
+func (s *NodeIdsSyncer) SyncNodeIdsToOBS(ctx context.Context) {
+	if err := s.syncNodeIdsToOBS(); err != nil {
+		logger.Errorf("SyncNodeIdsToOBS err: %+v", err)
+	}
+	ticker := time.NewTicker(s.intervalMinute)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			nodeIds, err = getNodeIds(kubeClient)
-			if err != nil {
-				return
-			}
-			klog.Infof("Get nodeIds: %v", nodeIds)
-
-			if err = writeNodeIdsFile(clusterId, nodeIds, localFilePath); err != nil {
-				klog.Errorf("Write node ids to file err: %+v", err)
+			if err := s.syncNodeIdsToOBS(); err != nil {
+				logger.Errorf("SyncNodeIdsToOBS err: %+v", err)
 				continue
 			}
-
-			utils.SendNodeIdsFileToOBS(clusterId, localFilePath)
-		case <-stopCh:
+		case <-ctx.Done():
 			klog.Info("=== SyncNodeIdsToOBS exit ===")
 			return
 		}
 	}
-
 }
 
-func getNodeIds(kubeClient *kubernetes.Clientset) ([]string, error) {
-	nodes, err := kubeClient.CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
+func (s *NodeIdsSyncer) syncNodeIdsToOBS() error {
+	var (
+		nodeIds []string
+		err     error
+	)
+	nodeIds, err = getNodeIds()
 	if err != nil {
-		klog.Errorf("Clientset get nodes err: %+v", err)
-		return nil, err
+		return err
+	}
+	logger.Infof("Get nodeIds: %v", nodeIds)
+
+	// todo 做缓存，先判断是否修改，再上传
+
+	if err = writeNodeIdsFile(s.clusterId, nodeIds, s.srcPath); err != nil {
+		return err
+	}
+	if err = s.obsCli.UploadObj(s.bucket, s.srcPath, s.targetPath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func getNodeIds() ([]string, error) {
+	nodes, err := k8s.GetKubeClientSet().CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "clientset get nodes err")
 	}
 
 	nodeIds := []string{}

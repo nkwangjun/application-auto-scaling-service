@@ -10,5 +10,5 @@ spec:
     - apiVersion: autoscaling.cce.io/v1alpha1
       kind: CustomedHorizontalPodAutoscaler
       name: customedhpa001
-  # 预测未来10分钟所需的副本数, 单位为分钟
+  # 请求天策的周期, 单位为分钟
   forecastWindow: 1

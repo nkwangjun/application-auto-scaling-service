@@ -1,4 +1,4 @@
-package controller
+package k8s
 
 import (
 	"context"
@@ -244,9 +244,7 @@ func (c *Controller) syncHandler(key string) error {
 		klog.Infof("=== ft marshal: %s", bytes)
 	}
 
-	// TODO(wangjun): 参数校验, 一个HPA只允许关联一个AHPA, 失败则更新AHPA状态和原因
-
-	// TODO(wangjun): 如果AHPA作用的目标对象发生了变化, 则删除历史关联的后台任务
+	// todo 参数校验
 
 	klog.Infof("Receive ForecastTask obj, ScaleTargetRefs[%s/%s], ForecastWindow[%dmin]",
 		NamespaceDefault, ft.Spec.ScaleTargetRefs[0].Name, *ft.Spec.ForecastWindow)
