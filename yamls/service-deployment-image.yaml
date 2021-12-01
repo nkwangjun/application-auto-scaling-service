@@ -1,0 +1,43 @@
+# 镜像部署
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: application-auto-scaling-service
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: application-auto-scaling-service
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: application-auto-scaling-service
+    spec:
+      serviceAccountName: application-auto-scaling-service-sa
+      containers:
+      - name: application-auto-scaling-service-container
+        image: swr.ap-southeast-1.myhuaweicloud.com/nanto/application-auto-scaling-service:v0.12.1
+#        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: cm-aass-volume
+          mountPath: /opt/cloud/application-auto-scaling-service/conf
+          readOnly: true
+#        - name: log
+#          mountPath: /
+        env:
+        - name: ak
+          valueFrom:
+            secretKeyRef:
+              name: secret-aass
+              key: ak
+        - name: sk
+          valueFrom:
+            secretKeyRef:
+              name: secret-aass
+              key: sk
+      volumes:
+      - name: cm-aass-volume
+        configMap:
+          name: cm-aass

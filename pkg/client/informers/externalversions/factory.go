@@ -29,7 +29,6 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 	versioned "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
 	autoscaling "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions/autoscaling"
-	batch "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions/batch"
 	internalinterfaces "nanto.io/application-auto-scaling-service/pkg/client/informers/externalversions/internalinterfaces"
 )
 
@@ -174,13 +173,8 @@ type SharedInformerFactory interface {
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
 	Autoscaling() autoscaling.Interface
-	Batch() batch.Interface
 }
 
 func (f *sharedInformerFactory) Autoscaling() autoscaling.Interface {
 	return autoscaling.New(f, f.namespace, f.tweakListOptions)
-}
-
-func (f *sharedInformerFactory) Batch() batch.Interface {
-	return batch.New(f, f.namespace, f.tweakListOptions)
 }

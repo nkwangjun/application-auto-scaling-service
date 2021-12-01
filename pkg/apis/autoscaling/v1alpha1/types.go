@@ -30,35 +30,35 @@ type CustomedHorizontalPodAutoscaler struct {
 }
 
 type CustomedHorizontalPodAutoscalerSpec struct {
-	CoolDownTime   string         `json:"coolDownTime"`
-	MaxReplicas    *int32         `json:"maxReplicas"`
-	MinReplicas    *int32         `json:"minReplicas"`
-	Rules          []Rule         `json:"rules"`
+	CoolDownTime   string         `json:"coolDownTime" yaml:"coolDownTime"`
+	MaxReplicas    *int32         `json:"maxReplicas" yaml:"maxReplicas"`
+	MinReplicas    *int32         `json:"minReplicas" yaml:"minReplicas"`
+	Rules          []Rule         `json:"rules" yaml:"rules"`
 	ScaleTargetRef ScaleTargetRef `json:"scaleTargetRef"`
 }
 
 type Rule struct {
-	Actions       []Action      `json:"actions"`
-	Disable       *bool         `json:"disable"`
-	MetricTrigger MetricTrigger `json:"metricTrigger"`
-	RuleName      string        `json:"ruleName"`
-	RuleType      string        `json:"ruleType"`
+	Actions       []Action      `json:"actions" yaml:"actions"`
+	Disable       *bool         `json:"disable" yaml:"disable"`
+	MetricTrigger MetricTrigger `json:"metricTrigger" yaml:"metricTrigger"`
+	RuleName      string        `json:"ruleName" yaml:"ruleName"`
+	RuleType      string        `json:"ruleType" yaml:"ruleType"`
 }
 
 type Action struct {
-	MetricRange    string `json:"metricRange"`
-	OperationType  string `json:"operationType"`
-	OperationUnit  string `json:"operationUnit"`
-	OperationValue *int32 `json:"operationValue"`
+	MetricRange    string `json:"metricRange" yaml:"metricRange"`
+	OperationType  string `json:"operationType" yaml:"operationType"`
+	OperationUnit  string `json:"operationUnit" yaml:"operationUnit"`
+	OperationValue *int32 `json:"operationValue" yaml:"operationValue"`
 }
 
 type MetricTrigger struct {
-	HitThreshold    *int32   `json:"hitThreshold"`
-	MetricName      string   `json:"metricName"`
-	MetricOperation string   `json:"metricOperation"`
-	MetricValue     *float32 `json:"metricValue"`
-	PeriodSeconds   *int32   `json:"periodSeconds"`
-	Statistic       string   `json:"statistic"`
+	HitThreshold    *int32   `json:"hitThreshold" yaml:"hitThreshold"`
+	MetricName      string   `json:"metricName" yaml:"metricName"`
+	MetricOperation string   `json:"metricOperation" yaml:"metricOperation"`
+	MetricValue     *float32 `json:"metricValue" yaml:"metricValue"`
+	PeriodSeconds   *int32   `json:"periodSeconds" yaml:"periodSeconds"`
+	Statistic       string   `json:"statistic" yaml:"statistic"`
 }
 
 type ScaleTargetRef struct {

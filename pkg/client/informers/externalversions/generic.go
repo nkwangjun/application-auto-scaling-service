@@ -24,7 +24,6 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 	v1alpha1 "nanto.io/application-auto-scaling-service/pkg/apis/autoscaling/v1alpha1"
-	v1 "nanto.io/application-auto-scaling-service/pkg/apis/batch/v1"
 )
 
 // GenericInformer is type of SharedIndexInformer which will locate and delegate to other
@@ -56,10 +55,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=autoscaling.cce.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("customedhorizontalpodautoscalers"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Autoscaling().V1alpha1().CustomedHorizontalPodAutoscalers().Informer()}, nil
-
-		// Group=batch.nanto.io, Version=v1
-	case v1.SchemeGroupVersion.WithResource("forecasttasks"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Batch().V1().ForecastTasks().Informer()}, nil
 
 	}
 

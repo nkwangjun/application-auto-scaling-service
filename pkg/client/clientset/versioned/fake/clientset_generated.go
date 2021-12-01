@@ -27,8 +27,6 @@ import (
 	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
 	autoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1"
 	fakeautoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1/fake"
-	batchv1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/batch/v1"
-	fakebatchv1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/batch/v1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.
@@ -84,9 +82,4 @@ var (
 // AutoscalingV1alpha1 retrieves the AutoscalingV1alpha1Client
 func (c *Clientset) AutoscalingV1alpha1() autoscalingv1alpha1.AutoscalingV1alpha1Interface {
 	return &fakeautoscalingv1alpha1.FakeAutoscalingV1alpha1{Fake: &c.Fake}
-}
-
-// BatchV1 retrieves the BatchV1Client
-func (c *Clientset) BatchV1() batchv1.BatchV1Interface {
-	return &fakebatchv1.FakeBatchV1{Fake: &c.Fake}
 }

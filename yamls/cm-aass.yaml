@@ -1,0 +1,158 @@
+# aass configmap
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: cm-aass
+  namespace: default
+data:
+  application-auto-scaling-service.conf: |-
+    [DEFAULT]
+    cluster_id = "d8654144-325b-11ec-9ee1-0255ac101fe8"
+    cluster_name = "ahpatest"
+
+    [strategy]
+    # 策略来源，enum："local"/"GTM"
+    source = "local"
+    local_path = "/opt/cloud/application-auto-scaling-service/conf/strategies.yaml"
+
+    [log]
+    level = info
+    path = /opt/cloud/logs/application-auto-scaling-service/application-auto-scaling-service.conf
+    # 单文件大小，单位MB
+    max_size = 20
+    # 最大保留文件个数
+    max_backups = 50
+    # 最大保留天数
+    max_days = 90
+
+    [obs]
+    endpoint = "https://obs.cn-north-4.myhuaweicloud.com"
+    bucket_name = "nanto-bucket"
+    # 本地文件路径（上传源路径）
+    source_file_node_ids_template = "/opt/cloud/application-auto-scaling-service/resources/%s_nodeIds.txt"
+    # 上传目标路径
+    object_key_node_ids_template = "transcode/aass/%s_nodeIds.txt"
+    # object_key_strategies_template = "transcode/aass/%s_strategies.json"
+    sync_node_ids_to_obs_interval_minute = 1
+  strategies.yaml: |-
+    clusterId: d8654144-325b-11ec-9ee1-0255ac101fe8
+    createTime: 1637200133333
+    # 这里暂时不考虑 namespace，默认“default“，后面有需要可修改
+    targetHPA: "customedhpa001"
+    strategies:
+      - validTime: "0:00-09:30"
+        spec:
+          coolDownTime: 1m
+          maxReplicas: 12
+          minReplicas: 3
+          rules:
+            - actions:
+                - metricRange: "0.60,+Infinity"
+                  operationType: ScaleUp
+                  operationUnit: Task
+                  operationValue: 2
+              disable: false
+              metricTrigger:
+                hitThreshold: 1
+                metricName: CPURatioToRequest
+                metricOperation: ">"
+                metricValue: 0.6
+                periodSeconds: 60
+                statistic: instantaneous
+              ruleName: up
+              ruleType: Metric
+            - actions:
+                - metricRange: "0.00,0.20"
+                  operationType: ScaleDown
+                  operationUnit: Task
+                  operationValue: 1
+              disable: false
+              metricTrigger:
+                hitThreshold: 1
+                metricName: CPURatioToRequest
+                metricOperation: <
+                metricValue: 0.2
+                periodSeconds: 60
+                statistic: instantaneous
+              ruleName: down
+              ruleType: Metric
+      - validTime: "9:30-20:00"
+        spec:
+          coolDownTime: 1m
+          maxReplicas: 10
+          minReplicas: 1
+          rules:
+            - actions:
+                - metricRange: "0.60,+Infinity"
+                  operationType: ScaleUp
+                  operationUnit: Task
+                  operationValue: 2
+              disable: false
+              metricTrigger:
+                hitThreshold: 1
+                metricName: CPURatioToRequest
+                metricOperation: ">"
+                metricValue: 0.6
+                periodSeconds: 60
+                statistic: instantaneous
+              ruleName: up
+              ruleType: Metric
+            - actions:
+                - metricRange: "0.00,0.20"
+                  operationType: ScaleDown
+                  operationUnit: Task
+                  operationValue: 1
+              disable: false
+              metricTrigger:
+                hitThreshold: 1
+                metricName: CPURatioToRequest
+                metricOperation: <
+                metricValue: 0.2
+                periodSeconds: 60
+                statistic: instantaneous
+              ruleName: down
+              ruleType: Metric
+      - validTime: "20:00-24:00"
+        spec:
+          coolDownTime: 1m
+          maxReplicas: 9
+          minReplicas: 3
+          rules:
+            - actions:
+                - metricRange: "0.40,0.50"
+                  operationType: ScaleUp
+                  operationUnit: Task
+                  operationValue: 1
+                - metricRange: "0.50,0.60"
+                  operationType: ScaleUp
+                  operationUnit: Task
+                  operationValue: 2
+                - metricRange: "0.60,+Infinity"
+                  operationType: ScaleUp
+                  operationUnit: Task
+                  operationValue: 3
+              disable: false
+              metricTrigger:
+                hitThreshold: 1
+                metricName: CPURatioToRequest
+                metricOperation: ">"
+                metricValue: 0.4
+                periodSeconds: 60
+                statistic: instantaneous
+              ruleName: up
+              ruleType: Metric
+            - actions:
+                - metricRange: "0.00,0.10"
+                  operationType: ScaleDown
+                  operationUnit: Task
+                  operationValue: 2
+              disable: false
+              metricTrigger:
+                hitThreshold: 1
+                metricName: CPURatioToRequest
+                metricOperation: "<"
+                metricValue: 0.1
+                periodSeconds: 60
+                statistic: instantaneous
+              ruleName: down
+              ruleType: Metric

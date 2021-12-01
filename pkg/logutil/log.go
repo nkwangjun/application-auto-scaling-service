@@ -1,6 +1,3 @@
-/*
-Package logutil 对logrus进行二次封装，用于提供日志相关接口
-*/
 package logutil
 
 import (
@@ -11,6 +8,9 @@ import (
 	"strings"
 	"sync"
 
+	"nanto.io/application-auto-scaling-service/pkg/confutil"
+
+	"github.com/natefinch/lumberjack"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,16 +18,6 @@ var (
 	defaultLogger *log.Logger
 	once          sync.Once
 )
-
-// LogConf 相关配置项
-type LogConf struct {
-	Level      string `ini:"level"`
-	Path       string `ini:"path"`
-	MaxSize    int    `ini:"max_size"`
-	MaxBackups int    `ini:"max_backups"`
-	MaxDays    int    `ini:"max_days"`
-	Compress   bool   `ini:"compress"`
-}
 
 // GetLogger 用于获取logger实例
 func GetLogger() *log.Logger {
@@ -38,20 +28,20 @@ func GetLogger() *log.Logger {
 }
 
 // Init ...
-func Init(config *LogConf) {
+func Init(config *confutil.LogConf) {
 	initLogger(GetLogger(), config)
 }
 
-func initLogger(logger *log.Logger, config *LogConf) {
+func initLogger(logger *log.Logger, config *confutil.LogConf) {
 	var level log.Level
 	logger.SetReportCaller(true)
 	logger.SetFormatter(&LogFormatterWithCaller{})
-	//logger.SetOutput(&lumberjack.Logger{
-	//	Filename:   config.Path,
-	//	MaxSize:    config.MaxSize,
-	//	MaxBackups: config.MaxBackups,
-	//	Compress:   config.Compress,
-	//})
+	logger.SetOutput(&lumberjack.Logger{
+		Filename:   config.Path,
+		MaxSize:    config.MaxSize,
+		MaxBackups: config.MaxBackups,
+		Compress:   config.Compress,
+	})
 
 	level, err := log.ParseLevel(config.Level)
 	if err != nil {

@@ -13,9 +13,14 @@ WORKDIR /app
 
 COPY --from=builder /usr/local/go/lib/time/zoneinfo.zip /app
 COPY --from=builder /src/application-auto-scaling-service /app
-RUN mkdir /app/resources
-RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-RUN echo "Asia/Shanghai" > /etc/timezone
+
+RUN mkdir -p /opt/cloud/application-auto-scaling-service/conf
+RUN mkdir -p /opt/cloud/application-auto-scaling-service/resources
+RUN mkdir -p /opt/cloud/logs/application-auto-scaling-service
+
+RUN apk add tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+	&& echo "Asia/Shanghai" > /etc/timezone \
+	&& apk del tzdata
 
 ENTRYPOINT  ["./application-auto-scaling-service"]
 #EXPOSE 80
