@@ -1,81 +1,57 @@
+# 本地测试时使用的策略文件，上线时在configmap中配置
 clusterId: d8654144-325b-11ec-9ee1-0255ac101fe8
 createTime: 1637200133333
 # 这里暂时不考虑 namespace，默认“default“，后面有需要可修改
 targetHPA: "customedhpa001"
 strategies:
-  - validTime: "0:00-09:30"
+  - validTime: "0:00-15:40"
     spec:
+      # 冷却时间
       coolDownTime: 1m
+      # 最大实例数
       maxReplicas: 10
+      # 最小实例数
       minReplicas: 1
+      # 策略规则（目前只适配CPU指标触发）
       rules:
+          # 执行动作
         - actions:
             - metricRange: "0.60,+Infinity"
-              operationType: ScaleUp
-              operationUnit: Task
               operationValue: 2
-          disable: false
+          # 触发条件
           metricTrigger:
-            hitThreshold: 1
-            metricName: CPURatioToRequest
             metricOperation: ">"
             metricValue: 0.6
-            periodSeconds: 60
-            statistic: instantaneous
+          # 规则名称
           ruleName: up
-          ruleType: Metric
         - actions:
             - metricRange: "0.00,0.20"
-              operationType: ScaleDown
-              operationUnit: Task
               operationValue: 1
-          disable: false
           metricTrigger:
-            hitThreshold: 1
-            metricName: CPURatioToRequest
             metricOperation: <
             metricValue: 0.2
-            periodSeconds: 60
-            statistic: instantaneous
           ruleName: down
-          ruleType: Metric
-  - validTime: "9:30-20:00"
+  - validTime: "15:40-15:50"
     spec:
       coolDownTime: 1m
-      maxReplicas: 10
-      minReplicas: 1
+      maxReplicas: 7
+      minReplicas: 3
       rules:
         - actions:
-            - metricRange: "0.60,+Infinity"
-              operationType: ScaleUp
-              operationUnit: Task
-              operationValue: 2
-          disable: false
+            - metricRange: "0.50,+Infinity"
+              operationValue: 3
           metricTrigger:
-            hitThreshold: 1
-            metricName: CPURatioToRequest
             metricOperation: ">"
-            metricValue: 0.6
-            periodSeconds: 60
-            statistic: instantaneous
+            metricValue: 0.5
           ruleName: up
-          ruleType: Metric
         - actions:
-            - metricRange: "0.00,0.20"
-              operationType: ScaleDown
-              operationUnit: Task
+            - metricRange: "0.00,0.10"
               operationValue: 1
-          disable: false
           metricTrigger:
-            hitThreshold: 1
-            metricName: CPURatioToRequest
             metricOperation: <
-            metricValue: 0.2
-            periodSeconds: 60
-            statistic: instantaneous
+            metricValue: 0.1
           ruleName: down
-          ruleType: Metric
-  - validTime: "20:00-24:00"
+  - validTime: "15:50-24:00"
     spec:
       coolDownTime: 1m
       maxReplicas: 9
@@ -83,39 +59,19 @@ strategies:
       rules:
         - actions:
             - metricRange: "0.40,0.50"
-              operationType: ScaleUp
-              operationUnit: Task
               operationValue: 1
             - metricRange: "0.50,0.60"
-              operationType: ScaleUp
-              operationUnit: Task
               operationValue: 2
             - metricRange: "0.60,+Infinity"
-              operationType: ScaleUp
-              operationUnit: Task
               operationValue: 3
-          disable: false
           metricTrigger:
-            hitThreshold: 1
-            metricName: CPURatioToRequest
             metricOperation: ">"
             metricValue: 0.4
-            periodSeconds: 60
-            statistic: instantaneous
           ruleName: up
-          ruleType: Metric
         - actions:
             - metricRange: "0.00,0.10"
-              operationType: ScaleDown
-              operationUnit: Task
               operationValue: 2
-          disable: false
           metricTrigger:
-            hitThreshold: 1
-            metricName: CPURatioToRequest
             metricOperation: "<"
             metricValue: 0.1
-            periodSeconds: 60
-            statistic: instantaneous
           ruleName: down
-          ruleType: Metric

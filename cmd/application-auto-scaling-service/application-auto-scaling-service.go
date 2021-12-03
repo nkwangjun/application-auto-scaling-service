@@ -4,10 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"time"
-
-	"k8s.io/apimachinery/pkg/util/rand"
 
 	"nanto.io/application-auto-scaling-service/cmd/application-auto-scaling-service/app"
 )

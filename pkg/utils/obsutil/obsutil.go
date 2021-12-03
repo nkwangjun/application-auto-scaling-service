@@ -6,7 +6,7 @@ import (
 	"github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
 	"github.com/pkg/errors"
 
-	"nanto.io/application-auto-scaling-service/pkg/logutil"
+	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
 )
 
 const (

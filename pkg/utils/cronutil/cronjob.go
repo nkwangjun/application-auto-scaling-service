@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 
-	"nanto.io/application-auto-scaling-service/pkg/logutil"
+	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
 )
 
 var logger = logutil.GetLogger()

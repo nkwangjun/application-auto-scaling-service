@@ -13,10 +13,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"nanto.io/application-auto-scaling-service/pkg/apis/autoscaling/v1alpha1"
-	"nanto.io/application-auto-scaling-service/pkg/confutil"
-	"nanto.io/application-auto-scaling-service/pkg/cronutil"
+	"nanto.io/application-auto-scaling-service/pkg/config"
 	"nanto.io/application-auto-scaling-service/pkg/k8sclient"
-	"nanto.io/application-auto-scaling-service/pkg/logutil"
+	"nanto.io/application-auto-scaling-service/pkg/utils"
+	"nanto.io/application-auto-scaling-service/pkg/utils/cronutil"
+	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
 )
 
 const (
@@ -32,7 +33,7 @@ type StrategyController struct {
 	LocalPath string
 }
 
-func NewStrategyController(conf *confutil.StrategyConf) *StrategyController {
+func NewStrategyController(conf *config.StrategyConf) *StrategyController {
 	return &StrategyController{
 		StrategySource: conf.Source,
 		LocalPath:      conf.LocalPath,
@@ -49,7 +50,14 @@ func (s *StrategyController) SyncStrategyToCCE(ctx context.Context, cancel conte
 		cancel()
 		return
 	}
+
+	// 校验目标 CCE HPA 是否存在
 	targetHPA := strategiesInfo.TargetHPA
+	if err = checkRefCustomedHPA(targetHPA); err != nil {
+		logger.Errorf("Check ref customed hpa[%s] err: %+v", targetHPA, err)
+		cancel()
+		return
+	}
 
 	// 注册、启动定时任务
 	cronutil.InitCron()
@@ -81,6 +89,32 @@ func (s *StrategyController) SyncStrategyToCCE(ctx context.Context, cancel conte
 
 	<-ctx.Done()
 	cronutil.GetCron().Stop()
+	logger.Info("=== Strategies controller exit ===")
+}
+
+func getAllCustomedHPAName() ([]string, error) {
+	chpas, err := k8sclient.GetCrdClientSet().AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
+		List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "get cce hpa err")
+	}
+	chpaNames := []string{}
+	for _, chpa := range chpas.Items {
+		chpaNames = append(chpaNames, chpa.Name)
+	}
+	return chpaNames, nil
+}
+
+func checkRefCustomedHPA(chpaName string) error {
+	chpaNames, err := getAllCustomedHPAName()
+	if err != nil {
+		return err
+	}
+	if !utils.IsInStrSlice(chpaNames, chpaName) {
+		return errors.Errorf("Customed HPA[%s] is not exist, current customed hpas include %v",
+			chpaName, chpaNames)
+	}
+	return nil
 }
 
 func genCronFunc(targetHPA string, newSpec v1alpha1.CustomedHorizontalPodAutoscalerSpec) cron.FuncJob {
@@ -142,6 +176,9 @@ func getLocalStrategies(path string) (*StrategiesInfo, error) {
 	info := &StrategiesInfo{}
 	if err = yaml.Unmarshal(bytes, &info); err != nil {
 		return nil, errors.Wrapf(err, "yaml unmarshal err, file content: %s", bytes)
+	}
+	if err = info.CheckAndCompleteInfo(); err != nil {
+		return nil, errors.Wrap(err, "check strategies info err")
 	}
 
 	bytes, err = json.Marshal(info)

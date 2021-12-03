@@ -7,35 +7,29 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"nanto.io/application-auto-scaling-service/pkg/confutil"
+	"nanto.io/application-auto-scaling-service/pkg/config"
 	"nanto.io/application-auto-scaling-service/pkg/controller"
 	"nanto.io/application-auto-scaling-service/pkg/k8sclient"
-	"nanto.io/application-auto-scaling-service/pkg/logutil"
-	"nanto.io/application-auto-scaling-service/pkg/obsutil"
 	"nanto.io/application-auto-scaling-service/pkg/syncer"
+	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
+	"nanto.io/application-auto-scaling-service/pkg/utils/obsutil"
 )
 
 var (
 	logger = logutil.GetLogger()
-
-	//conf *confutil.Config
 )
 
 func Run(configFile string) error {
 	// 读取配置、初始化log
-	conf, err := confutil.LoadConfig(configFile)
+	conf, err := config.LoadConfig(configFile)
 	if err != nil {
 		return err
 	}
 	logutil.Init(&conf.LogConf)
 	logger.Infof("Load config: %+v", conf)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	stopCh := ctx.Done()
 	// 启动 application-auto-scaling-service 服务
+	ctx, cancel := context.WithCancel(context.Background())
 	if err := startService(ctx, conf, cancel); err != nil {
 		logger.Errorf("Start service err: %+v", err)
 		return err
@@ -49,41 +43,35 @@ func Run(configFile string) error {
 		case sig := <-sigCh:
 			logger.Infof("Caught signal[%s], terminating...", sig)
 			run = false
-		case <-stopCh:
+		case <-ctx.Done():
 			logger.Infof("Stop serving due to ctx.Done(), terminating...")
 			run = false
 		}
 	}
 	cancel()
+	// 接收到信号退出场景，等待子goroutine退出
 	time.Sleep(time.Second)
 	return nil
 }
 
-func startService(ctx context.Context, conf *confutil.Config, cancel context.CancelFunc) error {
+func startService(ctx context.Context, conf *config.Config, cancel context.CancelFunc) error {
+	var (
+		obsCli *obsutil.ObsClient
+		err    error
+	)
+
 	// 初始化 k8s client set
-	if err := k8sclient.InitK8sClientSet(conf.KubeConfig); err != nil {
+	if err = k8sclient.InitK8sClientSet(conf.K8sConf.Kubeconfig); err != nil {
 		return err
 	}
 
-	{ // [Debug代码，上线删除] 打印 cce cluster 中的 customed hpa 信息
-		chpas, err := k8sclient.GetCrdClientSet().AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(controller.NamespaceDefault).
-			List(context.Background(), metav1.ListOptions{})
-		if err != nil {
-			return errors.Wrap(err, "get cce hpa err")
+	// 同步 X实例 信息给 Vega（目前通过obs）
+	if conf.SyncInstanceToVega {
+		if obsCli, err = obsutil.NewObsClient(conf.ObsConf.Endpoint); err != nil {
+			return err
 		}
-		chpaNum := len(chpas.Items)
-		for i, chpa := range chpas.Items {
-			logger.Infof("=== cce hpa[%d/%d]: %s/%s", i+1, chpaNum, chpa.Namespace, chpa.Name)
-		}
+		go syncer.NewInstanceSyncer(obsCli, &conf.ObsConf, conf.ClusterId).SyncInstanceToOBS(ctx)
 	}
-
-	// 初始化 ObsClient
-	obsCli, err := obsutil.NewObsClient(conf.ObsConf.Endpoint)
-	if err != nil {
-		return err
-	}
-	// 同步 X实例 信息给 Vega
-	go syncer.NewInstanceSyncer(obsCli, &conf.ObsConf, conf.ClusterId).SyncInstanceToOBS(ctx)
 
 	// 修改 cce 的扩缩策略
 	go controller.NewStrategyController(&conf.StrategyConf).SyncStrategyToCCE(ctx, cancel)

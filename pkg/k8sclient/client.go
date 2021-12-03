@@ -7,7 +7,7 @@ import (
 
 	apiextensionsclientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
 	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
-	"nanto.io/application-auto-scaling-service/pkg/logutil"
+	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
 )
 
 var logger = logutil.GetLogger()

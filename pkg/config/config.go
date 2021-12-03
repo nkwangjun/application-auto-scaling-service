@@ -1,4 +1,4 @@
-package confutil
+package config
 
 import (
 	"log"
@@ -9,13 +9,13 @@ import (
 
 type Config struct {
 	// CCE 集群元信息
-	ClusterId   string `ini:"cluster_id"`
-	ClusterName string `ini:"cluster_name"`
-	// kubeconfig 文件路径
-	KubeConfig   string       `ini:"kubeconfig"`
-	LogConf      LogConf      `ini:"log"`
-	ObsConf      ObsConf      `ini:"obs"`
-	StrategyConf StrategyConf `ini:"strategy"`
+	ClusterId          string       `ini:"cluster_id"`
+	ClusterName        string       `ini:"cluster_name"`
+	SyncInstanceToVega bool         `ini:"sync_instance_to_vega"`
+	LogConf            LogConf      `ini:"log"`
+	ObsConf            ObsConf      `ini:"obs"`
+	StrategyConf       StrategyConf `ini:"strategy"`
+	K8sConf            K8sConf      `ini:"k8s"`
 }
 
 // LogConf log相关配置
@@ -46,6 +46,12 @@ type StrategyConf struct {
 	Source string `ini:"source"`
 	// 本地策略文件路径，只有在 Source 为 "local" 时需要
 	LocalPath string `ini:"local_path"`
+}
+
+// K8sConf k8s相关配置
+type K8sConf struct {
+	// kebeconfig文件路径，只有在k8s体外运行时需要
+	Kubeconfig string `ini:"kubeconfig"`
 }
 
 // LoadConfig 加载配置文件

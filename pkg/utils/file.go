@@ -3,7 +3,7 @@ package utils
 import (
 	"os"
 
-	"nanto.io/application-auto-scaling-service/pkg/logutil"
+	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
 )
 
 var logger = logutil.GetLogger()

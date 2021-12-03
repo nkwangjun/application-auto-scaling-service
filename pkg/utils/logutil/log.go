@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"nanto.io/application-auto-scaling-service/pkg/confutil"
+	"nanto.io/application-auto-scaling-service/pkg/config"
 
-	"github.com/natefinch/lumberjack"
+	//"github.com/natefinch/lumberjack"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -28,20 +28,20 @@ func GetLogger() *log.Logger {
 }
 
 // Init ...
-func Init(config *confutil.LogConf) {
+func Init(config *config.LogConf) {
 	initLogger(GetLogger(), config)
 }
 
-func initLogger(logger *log.Logger, config *confutil.LogConf) {
+func initLogger(logger *log.Logger, config *config.LogConf) {
 	var level log.Level
 	logger.SetReportCaller(true)
 	logger.SetFormatter(&LogFormatterWithCaller{})
-	logger.SetOutput(&lumberjack.Logger{
-		Filename:   config.Path,
-		MaxSize:    config.MaxSize,
-		MaxBackups: config.MaxBackups,
-		Compress:   config.Compress,
-	})
+	//logger.SetOutput(&lumberjack.Logger{
+	//	Filename:   config.Path,
+	//	MaxSize:    config.MaxSize,
+	//	MaxBackups: config.MaxBackups,
+	//	Compress:   config.Compress,
+	//})
 
 	level, err := log.ParseLevel(config.Level)
 	if err != nil {

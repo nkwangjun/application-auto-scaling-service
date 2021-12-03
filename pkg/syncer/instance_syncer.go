@@ -10,10 +10,10 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"nanto.io/application-auto-scaling-service/pkg/confutil"
+	"nanto.io/application-auto-scaling-service/pkg/config"
 	"nanto.io/application-auto-scaling-service/pkg/k8sclient"
-	"nanto.io/application-auto-scaling-service/pkg/logutil"
-	"nanto.io/application-auto-scaling-service/pkg/obsutil"
+	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
+	"nanto.io/application-auto-scaling-service/pkg/utils/obsutil"
 )
 
 var logger = logutil.GetLogger()
@@ -31,7 +31,7 @@ type InstanceSyncer struct {
 	intervalMinute time.Duration
 }
 
-func NewInstanceSyncer(obsCli *obsutil.ObsClient, obsConfig *confutil.ObsConf, clusterId string) *InstanceSyncer {
+func NewInstanceSyncer(obsCli *obsutil.ObsClient, obsConfig *config.ObsConf, clusterId string) *InstanceSyncer {
 	return &InstanceSyncer{
 		obsCli:         obsCli,
 		clusterId:      clusterId,
