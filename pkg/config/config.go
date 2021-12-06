@@ -9,8 +9,8 @@ import (
 
 type Config struct {
 	// CCE 集群元信息
-	ClusterId          string       `ini:"cluster_id"`
-	ClusterName        string       `ini:"cluster_name"`
+	ClusterId string `ini:"cluster_id"`
+	//ClusterName        string       `ini:"cluster_name"`
 	SyncInstanceToVega bool         `ini:"sync_instance_to_vega"`
 	LogConf            LogConf      `ini:"log"`
 	ObsConf            ObsConf      `ini:"obs"`
@@ -80,8 +80,8 @@ func readConfig(configFile string, config *Config) error {
 // GetDefaultConfig 获取默认配置
 func GetDefaultConfig() *Config {
 	return &Config{
-		ClusterId:   "default_cluster_id",
-		ClusterName: "default_cluster_name",
+		ClusterId: "default_cluster_id",
+		//ClusterName: "default_cluster_name",
 		LogConf: LogConf{
 			Level:      "info",
 			Path:       "/opt/cloud/logs/application-auto-scaling-service/application-auto-scaling-service.log",

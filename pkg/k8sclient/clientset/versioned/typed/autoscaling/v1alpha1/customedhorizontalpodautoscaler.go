@@ -26,8 +26,8 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
-	v1alpha1 "nanto.io/application-auto-scaling-service/pkg/apis/autoscaling/v1alpha1"
-	scheme "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/scheme"
+	v1alpha1 "nanto.io/application-auto-scaling-service/pkg/k8sclient/apis/autoscaling/v1alpha1"
+	scheme "nanto.io/application-auto-scaling-service/pkg/k8sclient/clientset/versioned/scheme"
 )
 
 // CustomedHorizontalPodAutoscalersGetter has a method to return a CustomedHorizontalPodAutoscalerInterface.

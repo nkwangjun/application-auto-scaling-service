@@ -17,15 +17,19 @@ spec:
       serviceAccountName: application-auto-scaling-service-sa
       containers:
       - name: application-auto-scaling-service-container
-        image: swr.ap-southeast-1.myhuaweicloud.com/nanto/application-auto-scaling-service:v0.12.1
+        image: swr.ap-southeast-1.myhuaweicloud.com/nanto/application-auto-scaling-service:v0.12.6
 #        imagePullPolicy: IfNotPresent
         imagePullPolicy: Always
         volumeMounts:
         - name: cm-aass-volume
           mountPath: /opt/cloud/application-auto-scaling-service/conf
           readOnly: true
-#        - name: log
-#          mountPath: /
+        - name: vol-log
+          mountPath: /opt/cloud/logs/application-auto-scaling-service
+          # policy字段是CCE自定义的字段，能够让ICAgent识别并采集日志
+          policy:
+            logs:
+              rotate: ''
         env:
         - name: ak
           valueFrom:
@@ -41,3 +45,5 @@ spec:
       - name: cm-aass-volume
         configMap:
           name: cm-aass
+      - emptyDir: {}
+        name: vol-1og

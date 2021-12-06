@@ -24,7 +24,7 @@ import (
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
-	autoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1"
+	autoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/k8sclient/clientset/versioned/typed/autoscaling/v1alpha1"
 )
 
 type Interface interface {

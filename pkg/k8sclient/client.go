@@ -5,8 +5,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
-	apiextensionsclientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
-	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
+	apiextensionsclientset "nanto.io/application-auto-scaling-service/pkg/k8sclient/clientset/versioned"
 	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
 )
 
@@ -19,7 +18,7 @@ type K8sClientSet struct {
 	// kubeClientset is a standard kubernetes clientset
 	kubeClientset *kubernetes.Clientset
 	// crdClientset is a clientset for our own API group
-	crdClientset clientset.Interface
+	crdClientset apiextensionsclientset.Interface
 }
 
 // GetKubeClientSet 获取 标准kube clientset
@@ -31,7 +30,7 @@ func GetKubeClientSet() *kubernetes.Clientset {
 }
 
 // GetCrdClientSet 获取 自定义资源的 clientset
-func GetCrdClientSet() clientset.Interface {
+func GetCrdClientSet() apiextensionsclientset.Interface {
 	if clientSet == nil {
 		logger.Panic("K8sClientSet invalid")
 	}

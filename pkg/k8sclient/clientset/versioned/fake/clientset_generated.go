@@ -24,9 +24,9 @@ import (
 	"k8s.io/client-go/discovery"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
-	clientset "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned"
-	autoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1"
-	fakeautoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1/fake"
+	clientset "nanto.io/application-auto-scaling-service/pkg/k8sclient/clientset/versioned"
+	autoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/k8sclient/clientset/versioned/typed/autoscaling/v1alpha1"
+	fakeautoscalingv1alpha1 "nanto.io/application-auto-scaling-service/pkg/k8sclient/clientset/versioned/typed/autoscaling/v1alpha1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.

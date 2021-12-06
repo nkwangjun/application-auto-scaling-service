@@ -22,7 +22,6 @@ rules:
       - configmaps
       - pods
       - secrets
-      - endpoints
       - nodes
     verbs:
       - get

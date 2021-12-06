@@ -21,7 +21,7 @@ package fake
 import (
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
-	v1alpha1 "nanto.io/application-auto-scaling-service/pkg/client/clientset/versioned/typed/autoscaling/v1alpha1"
+	v1alpha1 "nanto.io/application-auto-scaling-service/pkg/k8sclient/clientset/versioned/typed/autoscaling/v1alpha1"
 )
 
 type FakeAutoscalingV1alpha1 struct {

@@ -1,8 +1,5 @@
-# 本地测试时使用的策略文件，上线时在configmap中配置
-clusterId: d8654144-325b-11ec-9ee1-0255ac101fe8
-createTime: 1637200133333
 # 这里暂时不考虑 namespace，默认“default“，后面有需要可修改
-targetHPA: "customedhpa001"
+targetHPA: "customedhpa01"
 strategies:
   - validTime: "0:00-15:40"
     spec:

@@ -1,7 +1,9 @@
 package controller
 
 import (
-	"nanto.io/application-auto-scaling-service/pkg/apis/autoscaling/v1alpha1"
+	"github.com/pkg/errors"
+
+	"nanto.io/application-auto-scaling-service/pkg/k8sclient/apis/autoscaling/v1alpha1"
 )
 
 const (
@@ -27,9 +29,6 @@ var (
 )
 
 type StrategiesInfo struct {
-	ClusterId string `yaml:"clusterId"`
-	// 策略创建时间，时间戳（毫秒）
-	CreateTime int64 `yaml:"createTime"`
 	// 目标HPA
 	TargetHPA  string     `yaml:"targetHPA"`
 	Strategies []Strategy `yaml:"strategies"`
@@ -42,11 +41,47 @@ type Strategy struct {
 }
 
 // todo 后面将yaml解析 和 k8s api server 请求结构体解耦
-// CheckAndCompleteInfo 校验用户输入的 strategies 信息是否合法，并补全信息
-func (s *StrategiesInfo) CheckAndCompleteInfo() error {
-	// todo 参数校验
-	for i := 0; i < len(s.Strategies); i++ {
-		completeRules(&s.Strategies[i])
+// checkAndCompleteInfo 校验用户输入的 strategies 信息是否合法，并补全信息
+func checkAndCompleteInfo(info *StrategiesInfo) error {
+	if err := checkStrategiesInfoFields(info); err != nil {
+		return err
+	}
+	for i := 0; i < len(info.Strategies); i++ {
+		completeRules(&info.Strategies[i])
+	}
+	return nil
+}
+
+// checkStrategiesInfoFields ...
+func checkStrategiesInfoFields(strategiesInfo *StrategiesInfo) error {
+	if strategiesInfo.TargetHPA == "" {
+		return errors.New("strategies target hpa must be set")
+	}
+	for i := 0; i < len(strategiesInfo.Strategies); i++ {
+		if err := checkStrategyFields(&strategiesInfo.Strategies[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkStrategyFields ...
+func checkStrategyFields(strategy *Strategy) error {
+	// 1. validTime
+	// 2. spec
+	for i := 0; i < len(strategy.Spec.Rules); i++ {
+		if err := checkRuleFields(&strategy.Spec.Rules[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkRuleFields(rule *v1alpha1.Rule) error {
+	// actions
+	// metricTrigger
+	if rule.MetricTrigger.MetricOperation != MetricOptScaleDown && rule.MetricTrigger.MetricOperation != MetricOptScaleUp {
+		return errors.Errorf("invalid metric operation: %s", rule.MetricTrigger.MetricOperation)
 	}
 	return nil
 }
@@ -84,7 +119,6 @@ func completeRuleActions(rule *v1alpha1.Rule) {
 	} else if rule.MetricTrigger.MetricOperation == MetricOptScaleDown { // metricOperation: "<"
 		optType = operationTypeScaleDown
 	}
-	// todo rule.MetricTrigger.MetricOperation 不合法情况，在上一个步骤，参数检查时做
 
 	for i := 0; i < len(rule.Actions); i++ {
 		// operationType: ScaleUp / ScaleDown

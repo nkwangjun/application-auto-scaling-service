@@ -5,7 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"nanto.io/application-auto-scaling-service/pkg/apis/autoscaling"
+	"nanto.io/application-auto-scaling-service/pkg/k8sclient/apis/autoscaling"
 )
 
 // SchemeGroupVersion is group version used to register these objects
