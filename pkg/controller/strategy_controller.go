@@ -23,6 +23,10 @@ import (
 
 const (
 	NamespaceDefault = "default"
+
+	strategiesSourceLocal = "local"
+	// 挂载的 configmap local-strategies.yaml 配置路径
+	configmapLocalStrategiesPath = "/opt/cloud/application-auto-scaling-service/conf/local-strategies.yaml"
 )
 
 var logger = logutil.GetLogger()
@@ -37,10 +41,15 @@ type StrategyController struct {
 }
 
 func NewStrategyController(conf *config.StrategyConf) *StrategyController {
-	return &StrategyController{
+	c := &StrategyController{
 		StrategySource: conf.Source,
 		LocalPath:      conf.LocalPath,
 	}
+	// conf中未指定“LocalPath”时，为挂载 configmap 配置场景
+	if c.StrategySource == strategiesSourceLocal && c.LocalPath == "" {
+		c.LocalPath = configmapLocalStrategiesPath
+	}
+	return c
 }
 
 // todo 目前只有local策略
@@ -133,6 +142,7 @@ func (s *StrategyController) execLocalStrategies() error {
 	return nil
 }
 
+// getAllCustomedHPAName 获取集群中所有 customed hpa 的 name
 func getAllCustomedHPAName() ([]string, error) {
 	chpas, err := k8sclient.GetCrdClientSet().AutoscalingV1alpha1().CustomedHorizontalPodAutoscalers(NamespaceDefault).
 		List(context.Background(), metav1.ListOptions{})
@@ -213,7 +223,7 @@ func (s *StrategyController) getLocalStrategies(path string) (*StrategiesInfo, e
 
 	// 读取本地配置，记录md5
 	if bytes, err = ioutil.ReadFile(path); err != nil {
-		return nil, errors.Wrap(err, "read local strategies file err")
+		return nil, errors.Wrapf(err, "read local strategies file[%s] err", path)
 	}
 	s.localDataKey = utils.DataHashMd5(bytes)
 

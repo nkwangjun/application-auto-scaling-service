@@ -7,24 +7,13 @@ metadata:
 data:
   application-auto-scaling-service.conf: |-
     [strategy]
-    # 策略来源，enum："local"/"GTM"
-    source = "local"
-    local_path = "/opt/cloud/application-auto-scaling-service/conf/strategies.yaml"
-
-    [log]
-    level = info
-    path = /opt/cloud/logs/application-auto-scaling-service/application-auto-scaling-service.conf
-    # 单文件大小，单位MB
-    max_size = 20
-    # 最大保留文件个数
-    max_backups = 50
-    # 最大保留天数
-    max_days = 90
+    # 策略来源，enum：local/GTM
+    source = local
 
   strategies.yaml: |-
-    targetHPA: "customedhpa01"
+    targetHPA: customedhpa01
     strategies:
-      - validTime: "0:00-15:40"
+      - validTime: 0:00-15:40
         spec:
           # 冷却时间
           coolDownTime: 1m
@@ -34,64 +23,64 @@ data:
           minReplicas: 1
           # 策略规则（目前只适配CPU指标触发）
           rules:
-              # 执行动作
+            # 执行动作
             - actions:
-                - metricRange: "0.60,+Infinity"
+                - metricRange: 0.60,+Infinity
                   operationValue: 2
               # 触发条件
               metricTrigger:
-                metricOperation: ">"
+                metricOperation: '>'
                 metricValue: 0.6
               # 规则名称
               ruleName: up
             - actions:
-                - metricRange: "0.00,0.20"
+                - metricRange: 0.00,0.20
                   operationValue: 1
               metricTrigger:
                 metricOperation: <
                 metricValue: 0.2
               ruleName: down
-      - validTime: "15:40-15:50"
+      - validTime: 15:40-15:50
         spec:
           coolDownTime: 1m
           maxReplicas: 7
           minReplicas: 3
           rules:
             - actions:
-                - metricRange: "0.50,+Infinity"
+                - metricRange: 0.50,+Infinity
                   operationValue: 3
               metricTrigger:
-                metricOperation: ">"
+                metricOperation: '>'
                 metricValue: 0.5
               ruleName: up
             - actions:
-                - metricRange: "0.00,0.10"
+                - metricRange: 0.00,0.10
                   operationValue: 1
               metricTrigger:
-                metricOperation: <
+                metricOperation: '<'
                 metricValue: 0.1
               ruleName: down
-      - validTime: "15:50-24:00"
+      - validTime: 15:50-24:00
         spec:
           coolDownTime: 1m
           maxReplicas: 9
           minReplicas: 3
           rules:
             - actions:
-                - metricRange: "0.40,0.50"
+                - metricRange: 0.40,0.50
                   operationValue: 1
-                - metricRange: "0.50,0.60"
+                - metricRange: 0.50,0.60
                   operationValue: 2
-                - metricRange: "0.60,+Infinity"
+                - metricRange: 0.60,+Infinity
                   operationValue: 3
               metricTrigger:
-                metricOperation: ">"
+                metricOperation: '>'
                 metricValue: 0.4
               ruleName: up
             - actions:
-                - metricRange: "0.00,0.10"
+                - metricRange: 0.00,0.10
                   operationValue: 2
               metricTrigger:
-                metricOperation: "<"
+                metricOperation: '<'
                 metricValue: 0.1
               ruleName: down

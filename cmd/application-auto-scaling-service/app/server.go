@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -28,6 +29,13 @@ func Run(configFile string) error {
 	logutil.Init(&conf.LogConf)
 	logger.Infof("Load config: %+v", conf)
 
+	// 捕获并记录异常
+	defer func() {
+		if e := recover(); e != nil {
+			logger.Errorf("Panic recover, err: %+v, call stack: %s", err, debug.Stack())
+		}
+	}()
+
 	// 启动 application-auto-scaling-service 服务
 	ctx, cancel := context.WithCancel(context.Background())
 	if err = startService(ctx, conf, cancel); err != nil {
@@ -45,7 +53,6 @@ func Run(configFile string) error {
 	case <-ctx.Done():
 		logger.Infof("Stop serving due to ctx.Done(), terminating...")
 	}
-
 	cancel()
 	time.Sleep(time.Second) // 等待子goroutine退出
 	return nil

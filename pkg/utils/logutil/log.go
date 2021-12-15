@@ -8,10 +8,10 @@ import (
 	"strings"
 	"sync"
 
-	"nanto.io/application-auto-scaling-service/pkg/config"
-
 	//"github.com/natefinch/lumberjack"
 	log "github.com/sirupsen/logrus"
+
+	"nanto.io/application-auto-scaling-service/pkg/config"
 )
 
 var (
