@@ -38,11 +38,13 @@ func Run(configFile string) error {
 
 	// 启动 application-auto-scaling-service 服务
 	ctx, cancel := context.WithCancel(context.Background())
-	if err = startService(ctx, conf, cancel); err != nil {
-		logger.Errorf("Start service err: %+v", err)
-		return err
-	}
+	//if err = startService(ctx, conf, cancel); err != nil {
+	//	logger.Errorf("Start service err: %+v", err)
+	//	// return err
+	//}
 	logger.Info("=== Start application-auto-scaling-service success ===")
+
+	startPolicy()
 
 	// 监听退出信号
 	sigCh := make(chan os.Signal, 1)
@@ -56,6 +58,12 @@ func Run(configFile string) error {
 	cancel()
 	time.Sleep(time.Second) // 等待子goroutine退出
 	return nil
+}
+
+func startPolicy() {
+	go controller.NewPolicy("policy-001", "fleet-123", "PercentAvailableGameSessions",
+		"RuleBased", "ChangeInCapacity",
+		50, 1, "GreaterThanThreshold", 2).Start()
 }
 
 // 启动 application-auto-scaling-service 服务
