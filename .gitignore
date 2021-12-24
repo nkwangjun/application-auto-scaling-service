@@ -1,3 +1,7 @@
+# local test
+pkg/resourceadapter/scalinggroup/fleet_mock.go
+
+
 # OSX leaves these everywhere on SMB shares
 ._*
 
@@ -138,4 +142,4 @@ vendordiff.patch
 # vendor
 /vendor
 
-pkg/resourceadapter/scalinggroup/fleet_mock.go
+/pkg/resourceadapter/scalinggroup/fleet_mock.go
