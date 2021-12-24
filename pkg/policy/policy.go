@@ -1,8 +1,13 @@
-package controller
+package policy
 
 import (
 	"github.com/pkg/errors"
+	"nanto.io/application-auto-scaling-service/pkg/metricwatch"
+	"nanto.io/application-auto-scaling-service/pkg/resourceadapter/scalinggroup"
+	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
 )
+
+var logger = logutil.GetLogger()
 
 type Policy struct {
 	name                  string
@@ -17,12 +22,12 @@ type Policy struct {
 	comparisonOperator    string
 	evaluationPeriods     int
 	quitChan              chan struct{}
+	groupInterface        scalinggroup.ScalingGroup
 }
 
-type invokeAction func() error
-
 func NewPolicy(name string, fleetId string, metricName string, policyType string, scalingAdjustmentType string,
-	threshold float32, scalingAdjustment int, comparisonOperator string, evaluationPeriods int) *Policy {
+	threshold float32, scalingAdjustment int, comparisonOperator string, evaluationPeriods int,
+	groupInterface scalinggroup.ScalingGroup) *Policy {
 	return &Policy{
 		name:                  name,
 		fleetId:               fleetId,
@@ -33,23 +38,24 @@ func NewPolicy(name string, fleetId string, metricName string, policyType string
 		scalingAdjustment:     scalingAdjustment,
 		comparisonOperator:    comparisonOperator,
 		// 评估周期, 指标需要持续满足触发条件才会执行扩缩容
-		evaluationPeriods:     evaluationPeriods,
-		quitChan:			   make(chan struct{}),
+		evaluationPeriods: evaluationPeriods,
+		quitChan:          make(chan struct{}),
+		groupInterface:    groupInterface,
 	}
 }
 
-func (p *Policy) Start(){
-	go NewMetricEvaluation(p.fleetId, p.metricName, p.comparisonOperator, p.evaluationPeriods, p.threshold,
+func (p *Policy) Start() {
+	go metricwatch.NewMetricAlarm(p.fleetId, p.metricName, p.comparisonOperator, p.evaluationPeriods, p.threshold,
 		p.DoAction).Run(p.quitChan)
 }
 
-func (p *Policy) Stop(){
+func (p *Policy) Stop() {
 	// stop policy
 	p.quitChan <- struct{}{}
 }
 
 func (p *Policy) Update(metricName string, policyType string, scalingAdjustmentType string,
-	threshold float32, scalingAdjustment int, comparisonOperator string, evaluationPeriods int){
+	threshold float32, scalingAdjustment int, comparisonOperator string, evaluationPeriods int) {
 	// 停止策略
 	p.Stop()
 
@@ -72,12 +78,12 @@ func (p *Policy) DoAction() error {
 	case "ChangeInCapacity":
 		// Scale out
 		if p.scalingAdjustment > 0 {
-			if err := scaleOut(p.scalingAdjustment, p.fleetId); err != nil {
+			if err := p.scaleOut(p.fleetId, p.scalingAdjustment); err != nil {
 				logger.Errorf("Scaling error: %+v", err)
 			}
 		}
 		if p.scalingAdjustment < 0 {
-			if err := scaleIn(p.scalingAdjustment, p.fleetId); err != nil {
+			if err := p.scaleIn(p.fleetId, p.scalingAdjustment); err != nil {
 				logger.Errorf("Scaling error: %+v", err)
 			}
 		}
@@ -91,14 +97,11 @@ func (p *Policy) DoAction() error {
 	return nil
 }
 
-func scaleOut(instanceNum int, fleetId string) error {
-	logger.Infof("Try to scale out %d instances in fleet: %s", instanceNum, fleetId)
-	// TODO(wj): 调用ECS接口创建虚拟机
-
-	// TODO(wj): 记录fleet instance信息
-	return nil
+func (p *Policy) scaleOut(fleetId string, instanceNum int) error {
+	logger.Infof("Try to scale out %d instances in scalinggroup: %s", instanceNum, fleetId)
+	return p.groupInterface.ScaleOut(fleetId, instanceNum)
 }
 
-func scaleIn(instanceNum int, fleetId string) error {
-	return errors.New("NotImplemented ScaleIn!")
+func (p *Policy) scaleIn(fleetId string, instanceNum int) error {
+	panic("implement me")
 }

@@ -137,3 +137,5 @@ vendordiff.patch
 
 # vendor
 /vendor
+
+pkg/resourceadapter/scalinggroup/fleet_mock.go

@@ -1,10 +1,18 @@
-package controller
+package metricwatch
 
-import "time"
+import (
+	"nanto.io/application-auto-scaling-service/pkg/utils/logutil"
+	"time"
+)
 
-type MetricEvaluation struct {
+var logger = logutil.GetLogger()
+
+type invokeAction func() error
+
+type MetricAlarm struct {
 	fleetId            string
 	metricName         string
+	dimensions         []Dimension
 	comparisonOperator string
 	evaluationPeriods  int
 	threshold          float32
@@ -12,9 +20,9 @@ type MetricEvaluation struct {
 	satisfiedCount     int
 }
 
-func NewMetricEvaluation(fleetId string, metricName string, comparisonOperator string, evaluationPeriods int,
-	threshold float32, action invokeAction) *MetricEvaluation {
-	return &MetricEvaluation{
+func NewMetricAlarm(fleetId string, metricName string, comparisonOperator string, evaluationPeriods int,
+	threshold float32, action invokeAction) *MetricAlarm {
+	return &MetricAlarm{
 		fleetId:            fleetId,
 		metricName:         metricName,
 		comparisonOperator: comparisonOperator,
@@ -25,10 +33,10 @@ func NewMetricEvaluation(fleetId string, metricName string, comparisonOperator s
 	}
 }
 
-func (m *MetricEvaluation) Run(quit <-chan struct{}) {
+func (m *MetricAlarm) Run(quit <-chan struct{}) {
 	for {
 		select {
-		case <- quit:
+		case <-quit:
 			logger.Infof("Quit policy evaluation, policy: %+v", m)
 			return
 		default:
@@ -39,14 +47,14 @@ func (m *MetricEvaluation) Run(quit <-chan struct{}) {
 	}
 }
 
-func (m *MetricEvaluation) doEvaluation() {
-	logger.Infof("Evaluation here, fleetId: %s", m.fleetId)
-
+func (m *MetricAlarm) doEvaluation() {
+	logger.Debugf("Evaluation here, MetricAlarm: %+v", m)
+	// 获取最近
 
 	m.satisfiedCount++
 }
 
-func (m *MetricEvaluation) doAction() {
+func (m *MetricAlarm) doAction() {
 	if m.satisfiedCount < m.evaluationPeriods {
 		logger.Debugf("No need to do action, satisfiedCount:%d, evaluationPeriods:%d, fleetId: %s",
 			m.satisfiedCount, m.evaluationPeriods, m.fleetId)

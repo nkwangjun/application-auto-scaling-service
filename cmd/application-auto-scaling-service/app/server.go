@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"nanto.io/application-auto-scaling-service/pkg/policy"
+	"nanto.io/application-auto-scaling-service/pkg/resourceadapter/scalinggroup"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -61,9 +63,17 @@ func Run(configFile string) error {
 }
 
 func startPolicy() {
-	go controller.NewPolicy("policy-001", "fleet-123", "PercentAvailableGameSessions",
+	var mockSG scalinggroup.ScalingGroup = &scalinggroup.GameFleetMock{
+		FleetInstance: map[string][]string{
+			"fleet-123": []string {
+				"fleet-123-server001",
+			},
+		},
+	}
+	go policy.NewPolicy("policy-001", "fleet-123", "PercentAvailableGameSessions",
 		"RuleBased", "ChangeInCapacity",
-		50, 1, "GreaterThanThreshold", 2).Start()
+		30, 1, "GreaterThanThreshold", 2,
+		mockSG).Start()
 }
 
 // 启动 application-auto-scaling-service 服务
