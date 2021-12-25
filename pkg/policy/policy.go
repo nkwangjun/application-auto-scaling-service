@@ -80,11 +80,13 @@ func (p *Policy) DoAction() error {
 		if p.scalingAdjustment > 0 {
 			if err := p.scaleOut(p.fleetId, p.scalingAdjustment); err != nil {
 				logger.Errorf("Scaling error: %+v", err)
+				return err
 			}
 		}
 		if p.scalingAdjustment < 0 {
 			if err := p.scaleIn(p.fleetId, p.scalingAdjustment); err != nil {
 				logger.Errorf("Scaling error: %+v", err)
+				return err
 			}
 		}
 		return nil
