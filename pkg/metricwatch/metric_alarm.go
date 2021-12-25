@@ -49,9 +49,47 @@ func (m *MetricAlarm) Run(quit <-chan struct{}) {
 
 func (m *MetricAlarm) doEvaluation() {
 	logger.Debugf("Evaluation here, MetricAlarm: %+v", m)
-	// 获取最近
+	// 获取最近的一次指标
+	dataList := GetMetricData(time.Now().Add(-time.Minute), time.Now(), m.metricName, []Dimension{
+		{"fleetId", m.fleetId}})
 
-	m.satisfiedCount++
+	if dataList == nil || len(dataList) == 0 {
+		logger.Warnf("Invalid metric evaluation, metricName:%s, fleetId:%s", m.metricName, m.fleetId)
+		m.satisfiedCount = 0
+		return
+	}
+
+	// 获取最近一个值
+	value := dataList[0].value
+	isSatisfied := false
+	switch m.comparisonOperator {
+	case "GreaterThanOrEqualToThreshold":
+		if value >= m.threshold {
+			isSatisfied = true
+		}
+	case "GreaterThanThreshold":
+		if value > m.threshold {
+			isSatisfied = true
+		}
+	case "LessThanThreshold":
+		if value < m.threshold {
+			isSatisfied = true
+		}
+	case "LessThanOrEqualToThreshold":
+		if value <= m.threshold {
+			isSatisfied = true
+		}
+	default:
+	}
+
+	if isSatisfied {
+		logger.Infof("Metric evaluation satisfied, metric data:%v, metric alarm:%v", dataList[0], m)
+		m.satisfiedCount++
+		return
+	}
+
+	logger.Infof("Metric evaluation not satisfied, metric data:%v, metric alarm:%v", dataList[0], m)
+	m.satisfiedCount = 0
 }
 
 func (m *MetricAlarm) doAction() {

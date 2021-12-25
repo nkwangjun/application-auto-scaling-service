@@ -1,10 +1,13 @@
 package metricwatch
 
-import "time"
+import (
+	"nanto.io/application-auto-scaling-service/pkg/resourceadapter/gamelift"
+	"time"
+)
 
 type MetricData struct {
 	metricName string
-	value      int32
+	value      float32
 	dimensions []Dimension
 	unit       string
 	timestamp  time.Time
@@ -21,6 +24,21 @@ func PutMetricData() error {
 }
 
 func GetMetricData(startTime time.Time, endTime time.Time, metricName string, dimensions []Dimension) []MetricData {
-	// TODO(wj): 查询数据库
-	return nil
+	// TODO(wj): 当前Show仅需要获取gamelift
+	if metricName != "PercentAvailableGameSessions" {
+		return []MetricData{}
+	}
+
+	value, err := gamelift.NewAwsClient().GetPercentAvailableGameSessions("fleet-123")
+	if err != nil {
+		logger.Errorf("GetMetrcData error:%v", err)
+		return []MetricData{}
+	}
+
+	return []MetricData {
+		{
+			metricName: "PercentAvailableGameSessions",
+			value: value,
+		},
+	}
 }

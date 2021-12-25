@@ -72,7 +72,7 @@ func startPolicy() {
 	}
 	go policy.NewPolicy("policy-001", "fleet-123", "PercentAvailableGameSessions",
 		"RuleBased", "ChangeInCapacity",
-		30, 1, "GreaterThanThreshold", 2,
+		80, 1, "LessThanThreshold", 2,
 		mockSG).Start()
 }
 
