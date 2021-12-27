@@ -26,7 +26,7 @@ func NewAwsClient() *Client {
 		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
 			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 				return aws.Endpoint{
-					URL: "http://localhost:9080",
+					URL: "http://127.0.0.1:9080",
 				}, nil
 			})))
 	if err != nil {
@@ -62,10 +62,10 @@ func (client *Client) CountAvailableGameSessions(fleetId string) (int, error) {
 
 func (client *Client) GetPercentAvailableGameSessions(fleetId string) (float32, error) {
 	// TODO(wj): Current show do mock!!
-	totalProcessNum := 4
+	totalProcessNum := 3
 	availableGameSessionNum, err := client.CountAvailableGameSessions(fleetId)
 	if err != nil {
 		return 0, err
 	}
-	return 1 - float32(availableGameSessionNum) / float32(totalProcessNum), nil
+	return 100 * (1 - float32(availableGameSessionNum) / float32(totalProcessNum)), nil
 }
